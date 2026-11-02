@@ -319,6 +319,7 @@ const DEFAULT_CONFIG = {
     {id:'math',   emoji:'🔢', name:'学数学',   praise:'你自己数出来了，一二三四五！'},
     {id:'english',emoji:'🔤', name:'学英语',   praise:'Good job！你跟着大声说英语啦！'},
     {id:'book',   emoji:'📖', name:'读绘本',   praise:'你认真听完了一个故事，又知道新故事啦！'},
+    {id:'sport',  emoji:'🏃', name:'去运动',   praise:'你跑跑跳跳出了一身汗，身体棒棒的！'},
     {id:'dinner', emoji:'🍚', name:'吃晚饭',   praise:'你坐在桌子旁好好吃饭，肚子圆滚滚！'},
     {id:'toys',   emoji:'🧸', name:'收玩具',   praise:'你把玩具一个一个送回家啦！'},
     {id:'teeth',  emoji:'🪥', name:'刷牙',     praise:'上面下面都刷到了，牙齿亮晶晶！'},
@@ -477,8 +478,8 @@ function render(){
   document.getElementById('goal').disabled = n < total;
   document.getElementById('walker').classList.toggle('won', n >= total);
   document.getElementById('count').textContent = `${n}/${total}`;
-  // 宽屏时按任务数排成两行（最多 4 列），一屏放下所有卡片
-  const cols = Math.min(Math.max(Math.ceil(tasks.length / 2), 3), 4);
+  // 宽屏时按任务数排成两行（最多 5 列），一屏放下所有卡片
+  const cols = Math.min(Math.max(Math.ceil(tasks.length / 2), 3), 5);
   board.style.setProperty('--cols', cols);
   board.style.setProperty('--rows', Math.max(Math.ceil(tasks.length / cols), 1));
   board.innerHTML = '';
@@ -950,6 +951,23 @@ document.getElementById('restore').onclick = async () => {
 /* 离线可用 + 请浏览器不要自动清理这里的数据 */
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){}
+
+/* 以后新增的默认任务，也自动加到已经在用的设备上（家长删掉过的不会再加回来） */
+(function addNewDefaults(){
+  if(!config.seen) config.seen = config.tasks.map(t => t.id);
+  const plan = ensurePlan();
+  DEFAULT_CONFIG.tasks.forEach((d, i) => {
+    if(config.seen.includes(d.id)) return;
+    config.seen.push(d.id);
+    if(config.tasks.some(t => t.id === d.id)) return;
+    // 插在默认顺序里它前一个任务的后面
+    const prev = DEFAULT_CONFIG.tasks.slice(0, i).reverse().find(x => config.tasks.some(t => t.id === x.id));
+    const at = prev ? config.tasks.findIndex(t => t.id === prev.id) + 1 : config.tasks.length;
+    config.tasks.splice(at, 0, {...d});
+    if(!plan.includes(d.id)) plan.push(d.id);
+  });
+  saveConfig(); saveDays();
+})();
 
 render();
 renderAvatar(document.getElementById('face'));
