@@ -36,6 +36,8 @@ header{
 .hello{font-size:clamp(20px,4.6vw,30px);font-weight:800;letter-spacing:1px;white-space:nowrap}
 .stars{flex:1;display:flex;justify-content:center;gap:clamp(2px,1vw,8px);flex-wrap:wrap}
 .star{font-size:clamp(22px,5vw,38px);filter:grayscale(1) opacity(.28);transition:filter .3s}
+/* 手机上星星行放不下，进度路已经表达了同样的信息 */
+@media (max-width:599px){.stars{visibility:hidden}}
 .star.on{filter:none;animation:pop .6s cubic-bezier(.3,1.8,.5,1)}
 @keyframes pop{0%{transform:scale(.2) rotate(-40deg)}100%{transform:scale(1) rotate(0)}}
 
@@ -108,10 +110,10 @@ main{
   padding:10px 16px calc(env(safe-area-inset-bottom) + 24px);
   max-width:1100px;margin:0 auto;
 }
-@media (min-width:600px){ main{grid-template-columns:repeat(3,1fr)} }
+@media (min-width:600px){ main{grid-template-columns:repeat(var(--cols,3),1fr)} }
 /* 横放平板：两行刚好铺满一屏 */
 @media (orientation:landscape) and (min-width:600px){
-  main .card{aspect-ratio:auto;height:calc((100dvh - 170px) / 2);min-height:170px}
+  main .card{aspect-ratio:auto;height:calc((100dvh - 190px) / var(--rows,2));min-height:140px}
   main .bubble{width:auto;height:58%}
 }
 .card{
@@ -284,6 +286,8 @@ const DEFAULT_CONFIG = {
     {id:'dress',  emoji:'👕', name:'自己穿衣', praise:'自己穿好衣服，真厉害！'},
     {id:'bfast',  emoji:'🥣', name:'吃早饭',   praise:'早饭吃光光，长得高高！'},
     {id:'math',   emoji:'🔢', name:'学数学',   praise:'一二三四五，数学真棒！'},
+    {id:'english',emoji:'🔤', name:'学英语',   praise:'Good job！英语说得真好！'},
+    {id:'book',   emoji:'📖', name:'读绘本',   praise:'读完一本书，又知道新故事啦！'},
     {id:'dinner', emoji:'🍚', name:'吃晚饭',   praise:'按时吃饭，肚子圆滚滚！'},
     {id:'toys',   emoji:'🧸', name:'收玩具',   praise:'玩具都回家啦，真能干！'},
     {id:'teeth',  emoji:'🪥', name:'刷牙',     praise:'牙齿刷得亮晶晶！'},
@@ -421,6 +425,10 @@ function render(){
   document.getElementById('goal').classList.toggle('won', n >= total);
   document.getElementById('walker').classList.toggle('won', n >= total);
   document.getElementById('count').textContent = `${n}/${total}`;
+  // 宽屏时按任务数排成两行（最多 4 列），一屏放下所有卡片
+  const cols = Math.min(Math.max(Math.ceil(tasks.length / 2), 3), 4);
+  board.style.setProperty('--cols', cols);
+  board.style.setProperty('--rows', Math.max(Math.ceil(tasks.length / cols), 1));
   board.innerHTML = '';
   tasks.forEach((t, i) => {
     const b = document.createElement('button');
