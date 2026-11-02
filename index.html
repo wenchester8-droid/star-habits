@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="星星打卡">
+<meta name="theme-color" content="#fff4d6">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>星星打卡</title>
+<style>
+:root{
+  --bg:#fff4d6; --bg2:#ffe3b0; --ink:#4a3423; --muted:#9a7b5f;
+  --card:#ffffff; --gold:#ffc83d; --gold-deep:#f0a500; --line:#f1d9ae;
+  --c1:#ff8a7a; --c2:#7cc6ff; --c3:#8be08b; --c4:#c9a2ff; --c5:#ffb766; --c6:#5fd5c8;
+  --shadow:0 6px 0 rgba(160,110,40,.18), 0 10px 24px rgba(160,110,40,.14);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{
+  background:radial-gradient(circle at 20% 0%,#fffaf0 0,var(--bg) 45%,var(--bg2) 100%) fixed;
+  color:var(--ink);
+  font-family:"PingFang SC","HarmonyOS Sans SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  -webkit-user-select:none;user-select:none;touch-action:manipulation;overflow-x:hidden;
+}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+
+/* ---------- 顶部 ---------- */
+header{
+  display:flex;align-items:center;gap:12px;
+  padding:calc(env(safe-area-inset-top) + 14px) 16px 8px;
+}
+.hello{font-size:clamp(20px,4.6vw,30px);font-weight:800;letter-spacing:1px;white-space:nowrap}
+.stars{flex:1;display:flex;justify-content:center;gap:clamp(2px,1vw,8px);flex-wrap:wrap}
+.star{font-size:clamp(22px,5vw,38px);filter:grayscale(1) opacity(.28);transition:filter .3s}
+.star.on{filter:none;animation:pop .6s cubic-bezier(.3,1.8,.5,1)}
+@keyframes pop{0%{transform:scale(.2) rotate(-40deg)}100%{transform:scale(1) rotate(0)}}
+
+.calbtn{width:52px;height:52px;border-radius:16px;font-size:30px;background:var(--card);box-shadow:var(--shadow);flex:none}
+.calbtn:active{transform:translateY(3px)}
+
+/* ---------- 今天的进度：小人沿路走向礼物 ---------- */
+.track{max-width:1100px;margin:0 auto;padding:2px 16px 6px;display:flex;align-items:center;gap:12px}
+.road{position:relative;flex:1;height:26px;border-radius:99px;background:#fff;box-shadow:inset 0 3px 0 rgba(160,110,40,.15)}
+.road .fill{position:absolute;inset:0 auto 0 0;border-radius:99px;background:linear-gradient(90deg,#ffd76a,#ffb13d);transition:width .8s cubic-bezier(.3,1.4,.5,1)}
+.road .walker{position:absolute;top:50%;font-size:46px;transform:translate(-50%,-58%);transition:left .8s cubic-bezier(.3,1.4,.5,1)}
+.road .walker.hop{animation:hop .5s ease-out 2}
+@keyframes hop{50%{transform:translate(-50%,-110%)}}
+/* 小人一直轻轻摇头；全部完成后改成开心地蹦 */
+.walker .face{display:block;line-height:1;transform-origin:50% 85%;animation:wobble 2.6s ease-in-out infinite}
+.walker.won .face{animation:dance 0.9s ease-in-out infinite}
+.walker .face img,.walker .face video{display:block;width:62px;height:62px;border-radius:50%;object-fit:cover;
+  border:3px solid #fff;box-shadow:0 3px 8px rgba(120,80,20,.3);background:#fff}
+@keyframes wobble{0%,100%{transform:rotate(0)}15%{transform:rotate(-12deg)}30%{transform:rotate(10deg)}45%{transform:rotate(-6deg)}60%{transform:rotate(0)}}
+.avatar-prev{width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--line);background:#fff;display:grid;place-items:center;font-size:36px;overflow:hidden}
+.avatar-prev img,.avatar-prev video{width:100%;height:100%;object-fit:cover}
+.goal{font-size:36px;flex:none}
+.goal.won{animation:dance 1s ease-in-out infinite}
+.count{font-size:clamp(18px,4vw,24px);font-weight:800;color:var(--gold-deep);flex:none;min-width:3.2em;text-align:right}
+
+/* ---------- 月历 ---------- */
+.month{position:fixed;inset:0;z-index:35;display:none;background:var(--bg);overflow:auto}
+.month.show{display:block}
+.month .wrap{max-width:820px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px) 16px 40px}
+.mhead{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.mhead h2{flex:1;text-align:center;margin:0;font-size:clamp(22px,5vw,32px)}
+.mbtn{width:52px;height:52px;border-radius:16px;background:var(--card);box-shadow:var(--shadow);font-size:24px;font-weight:800}
+.mbtn:disabled{opacity:.3}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:clamp(4px,1.2vw,10px)}
+.cal .wk{text-align:center;font-size:14px;color:var(--muted);font-weight:700}
+.day{position:relative;aspect-ratio:1;border-radius:clamp(10px,2vw,18px);background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;
+  box-shadow:0 3px 0 rgba(160,110,40,.12);overflow:hidden}
+.day .n{position:absolute;top:3px;left:6px;font-size:clamp(10px,2vw,13px);color:var(--muted)}
+.day .s{font-size:clamp(20px,6vw,40px);line-height:1}
+.day .s.sm{font-size:clamp(14px,3.6vw,24px)}
+.day .p{font-size:clamp(10px,2.2vw,14px);font-weight:800;color:var(--gold-deep)}
+.day .lvl{position:absolute;inset:auto 0 0 0;background:#ffe08a;opacity:.55}
+.day.full{background:linear-gradient(160deg,#fff6c9,#ffd76a)}
+.day.today{outline:4px solid var(--gold-deep);outline-offset:-4px}
+.day.future{opacity:.45}
+@media (orientation:landscape){.day{aspect-ratio:auto;height:calc((100dvh - 250px) / 6);min-height:44px}}
+.day.blank{background:none;box-shadow:none}
+.msum{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin:18px 0 6px}
+.msum div{background:var(--card);border-radius:18px;padding:10px 18px;text-align:center;box-shadow:0 3px 0 rgba(160,110,40,.12);font-size:14px;color:var(--muted)}
+.msum b{display:block;font-size:28px;color:var(--ink)}
+.legend{text-align:center;font-size:13px;color:var(--muted);margin-top:8px}
+
+/* 家长面板：本月每项完成率 */
+.bars{display:flex;flex-direction:column;gap:8px}
+.bar{display:grid;grid-template-columns:2.2em 5em 1fr 4.5em;align-items:center;gap:8px;font-size:14px}
+.bar .bg{height:14px;border-radius:99px;background:#fff;overflow:hidden}
+.bar .bg i{display:block;height:100%;background:linear-gradient(90deg,#8be08b,#4cbf6b);border-radius:99px}
+.bar span:last-child{text-align:right;color:var(--muted)}
+
+.gear{position:relative;width:44px;height:44px;border-radius:50%;font-size:22px;opacity:.45;flex:none}
+.gear svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.gear circle{fill:none;stroke:var(--gold-deep);stroke-width:4;stroke-dasharray:126;stroke-dashoffset:126}
+.gear.holding circle{transition:stroke-dashoffset 2s linear;stroke-dashoffset:0}
+.gear.holding{opacity:1}
+
+/* ---------- 任务卡 ---------- */
+main{
+  display:grid;gap:clamp(12px,2.4vw,22px);
+  grid-template-columns:repeat(2,1fr);
+  padding:10px 16px calc(env(safe-area-inset-bottom) + 24px);
+  max-width:1100px;margin:0 auto;
+}
+@media (min-width:600px){ main{grid-template-columns:repeat(3,1fr)} }
+/* 横放平板：两行刚好铺满一屏 */
+@media (orientation:landscape) and (min-width:600px){
+  main .card{aspect-ratio:auto;height:calc((100dvh - 170px) / 2);min-height:170px}
+  main .bubble{width:auto;height:58%}
+}
+.card{
+  position:relative;background:var(--card);border-radius:28px;
+  aspect-ratio:1/1.08;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  box-shadow:var(--shadow);border:4px solid transparent;transition:transform .12s;
+}
+.card:active{transform:translateY(4px) scale(.97)}
+.bubble{
+  width:68%;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;
+  font-size:clamp(46px,11vw,92px);background:var(--tint);
+  box-shadow:inset 0 -8px 0 rgba(0,0,0,.08);
+}
+.label{font-size:clamp(15px,3.4vw,22px);font-weight:700}
+.card.done{background:linear-gradient(160deg,#fff9e0,#ffeaa6);border-color:var(--gold)}
+.card.done::after{
+  content:"⭐";position:absolute;top:-12px;right:-8px;font-size:clamp(34px,7vw,52px);
+  filter:drop-shadow(0 3px 2px rgba(0,0,0,.15));animation:pop .6s cubic-bezier(.3,1.8,.5,1);
+}
+
+/* ---------- 播放层 ---------- */
+.stage{
+  position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;flex-direction:column;
+  background:rgba(40,25,10,.86);
+}
+.stage.show{display:flex}
+.stage video{max-width:100vw;max-height:100vh;width:100%;height:100%;object-fit:contain;background:#000}
+.fallback{display:flex;flex-direction:column;align-items:center;gap:18px;color:#fff;text-align:center;padding:16px}
+.fallback .big{font-size:min(40vw,240px);animation:dance 1s ease-in-out infinite}
+.fallback .praise{font-size:clamp(26px,6vw,48px);font-weight:800;text-shadow:0 3px 0 rgba(0,0,0,.25)}
+@keyframes dance{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-24px) rotate(6deg)}}
+.skip{position:absolute;right:16px;bottom:calc(env(safe-area-inset-bottom) + 16px);color:#fff;opacity:.5;font-size:15px;padding:10px 14px}
+canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:30}
+
+/* ---------- 家长面板 ---------- */
+.panel{
+  position:fixed;inset:0;z-index:40;display:none;background:var(--bg);overflow:auto;
+  -webkit-user-select:text;user-select:text;
+}
+.panel.show{display:block}
+.panel .wrap{max-width:760px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 16px) 16px 60px}
+.panel h2{margin:4px 0 14px;font-size:24px;display:flex;justify-content:space-between;align-items:center}
+.panel h3{margin:26px 0 10px;font-size:17px;color:var(--muted)}
+.btn{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:9px 14px;font-size:15px;font-weight:600}
+.btn.primary{background:var(--gold);border-color:var(--gold-deep)}
+.btn.danger{color:#c0392b}
+.btn.rec{background:#ff6b6b;color:#fff;border-color:#e04848}
+.btn.tog.on{background:#fff6c9;border-color:var(--gold)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.panel input[type=text]{
+  font:inherit;font-size:16px;color:var(--ink);background:#fff;border:2px solid var(--line);border-radius:12px;padding:8px 10px;min-width:0;
+}
+.task-edit{background:var(--card);border-radius:20px;padding:14px;margin-bottom:12px;box-shadow:0 3px 0 rgba(160,110,40,.12)}
+.task-edit .grid{display:grid;grid-template-columns:72px 1fr;gap:8px}
+.task-edit .grid .wide{grid-column:1/-1}
+.task-edit .emoji{text-align:center;font-size:28px !important}
+.media{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tag{font-size:13px;padding:4px 10px;border-radius:99px;background:#eee;color:#777}
+.tag.ok{background:#dff5d8;color:#2e7d32}
+.hist{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center}
+.hist div{background:var(--card);border-radius:14px;padding:8px 2px;font-size:13px}
+.hist b{display:block;font-size:20px;margin-top:2px}
+.hint{font-size:13px;color:var(--muted);line-height:1.6}
+@media (max-width:480px){.task-edit .grid{grid-template-columns:60px 1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hello" id="hello">小宝</div>
+  <div class="stars" id="stars"></div>
+  <button class="calbtn" id="openMonth" aria-label="月历">📅</button>
+  <button class="gear" id="gear" aria-label="家长设置（长按）">
+    <svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="20"/></svg>⚙️
+  </button>
+</header>
+
+<div class="track">
+  <div class="road"><div class="fill" id="fill"></div><div class="walker" id="walker"><span class="face" id="face">🧒</span></div></div>
+  <div class="goal" id="goal">🎁</div>
+  <div class="count" id="count"></div>
+</div>
+
+<main id="board"></main>
+
+<div class="stage" id="stage">
+  <video id="video" playsinline webkit-playsinline preload="auto"></video>
+  <div class="fallback" id="fallback"><div class="big" id="fbEmoji"></div><div class="praise" id="fbText"></div></div>
+  <button class="skip" id="skip">轻点跳过</button>
+</div>
+
+<div class="month" id="month"><div class="wrap">
+  <div class="mhead">
+    <button class="mbtn" id="mPrev" aria-label="上个月">◀</button>
+    <h2 id="mTitle"></h2>
+    <button class="mbtn" id="mNext" aria-label="下个月">▶</button>
+    <button class="mbtn" id="mClose" aria-label="关闭">✕</button>
+  </div>
+  <div class="cal" id="cal"></div>
+  <div class="msum" id="msum"></div>
+  <div class="legend">👑 当天全部完成 · ⭐数字 = 当天点亮几颗星</div>
+</div></div>
+
+<canvas id="fx"></canvas>
+
+<div class="panel" id="panel"><div class="wrap">
+  <h2>家长设置 <button class="btn primary" id="closePanel">完成</button></h2>
+
+  <div class="row">
+    <label class="field" style="flex:1">孩子的名字（会在夸奖里念出来）<input type="text" id="kidName"></label>
+  </div>
+
+  <h3>今天（点一下补点或撤销）</h3>
+  <div class="row" id="todayList"></div>
+
+  <h3>每天的任务</h3>
+  <div id="taskList"></div>
+  <button class="btn" id="addTask">＋ 添加任务</button>
+
+  <h3>进度条上的小人</h3>
+  <div class="row">
+    <div class="avatar-prev" id="avatarPrev"></div>
+    <button class="btn" id="pickAvatar">选孩子的头像</button>
+    <button class="btn" id="delAvatar">换回默认</button>
+  </div>
+  <p class="hint">可以选一张照片（会自动裁成圆形并轻轻摇头），也可以选一段几秒的短视频，比如 AI 生成的摇头、眨眼动画，会循环播放。</p>
+
+  <h3>全部完成时的庆祝</h3>
+  <div class="task-edit">
+    <div class="field">庆祝的话<input type="text" id="allPraise"></div>
+    <div class="media" id="allMedia"></div>
+  </div>
+
+  <h3>最近 7 天</h3>
+  <div class="hist" id="hist"></div>
+
+  <h3>本月每项完成情况</h3>
+  <div class="bars" id="bars"></div>
+
+  <h3>其他</h3>
+  <div class="row">
+    <button class="btn" id="resetToday">清空今天的星星</button>
+  </div>
+
+  <h3>备份</h3>
+  <div class="row">
+    <button class="btn" id="backupSmall">备份记录和设置</button>
+    <button class="btn" id="backupFull">完整备份（含短片和录音）</button>
+    <button class="btn" id="restore">从备份恢复</button>
+  </div>
+  <p class="hint" id="backupHint">建议每月做一次完整备份，存到「文件」App 或 iCloud 云盘。换设备、误删 App 时可以从备份恢复。</p>
+  <p class="hint">
+    · 短片：把 AI 生成的 5 秒小视频选进来，孩子点任务时会全屏播放。<br>
+    · 录音：录下你自己的夸奖，会和短片一起播放；没录音时用电脑语音念。<br>
+    · 当天点亮的任务再点一次会重播，不会重复得星。<br>
+    · 所有设置、短片和录音只存在这台设备的浏览器里，不会上传。
+  </p>
+</div></div>
+
+<input type="file" id="pickFile" hidden>
+
+<script>
+/* ================= 数据 ================= */
+const COLORS = ['--c1','--c2','--c3','--c4','--c5','--c6'];
+const DEFAULT_CONFIG = {
+  name: '小宝',
+  allPraise: '今天的星星全部点亮啦！你太棒了！',
+  tasks: [
+    {id:'dress',  emoji:'👕', name:'自己穿衣', praise:'自己穿好衣服，真厉害！'},
+    {id:'bfast',  emoji:'🥣', name:'吃早饭',   praise:'早饭吃光光，长得高高！'},
+    {id:'math',   emoji:'🔢', name:'学数学',   praise:'一二三四五，数学真棒！'},
+    {id:'dinner', emoji:'🍚', name:'吃晚饭',   praise:'按时吃饭，肚子圆滚滚！'},
+    {id:'toys',   emoji:'🧸', name:'收玩具',   praise:'玩具都回家啦，真能干！'},
+    {id:'teeth',  emoji:'🪥', name:'刷牙',     praise:'牙齿刷得亮晶晶！'},
+  ]
+};
+
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+let config = store.get('hb_config', null) || structuredClone(DEFAULT_CONFIG);
+let days = store.get('hb_days', {});
+let totals = store.get('hb_totals', {});   // 旧数据：每天当时有几个任务（没有快照时兜底）
+let plans = store.get('hb_plans', {});     // 每天的任务快照：当天要做哪些任务，统计都以它为准
+const saveConfig = () => store.set('hb_config', config);
+const saveDays = () => { store.set('hb_days', days); store.set('hb_totals', totals); store.set('hb_plans', plans); };
+
+function dayKey(d = new Date()){
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function ensurePlan(k = dayKey()){
+  if(!plans[k]){ plans[k] = config.tasks.map(t => t.id); saveDays(); }
+  return plans[k];
+}
+function dayStat(k){
+  const done = days[k] || [], plan = plans[k];
+  if(plan){
+    const n = done.filter(id => plan.includes(id)).length, total = plan.length || 1;
+    return {n, total, full: n >= total};
+  }
+  const n = done.length, total = totals[k] || config.tasks.length || 1;
+  return {n, total, full: n >= total};
+}
+const todayDone = () => days[dayKey()] || [];
+const todayTasks = () => { const p = ensurePlan(); return config.tasks.filter(t => p.includes(t.id)); };
+function setDone(id, on){
+  const k = dayKey(), cur = new Set(days[k] || []);
+  on ? cur.add(id) : cur.delete(id);
+  days[k] = [...cur]; saveDays();
+}
+
+/* 短片、录音放 IndexedDB（体积大，localStorage 放不下） */
+const media = (() => {
+  const mem = new Map();
+  let dbp = null;
+  try{
+    dbp = new Promise((res, rej) => {
+      const r = indexedDB.open('hb_media', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('m');
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    }).catch(() => null);
+  }catch(e){ dbp = Promise.resolve(null); }
+  const tx = async (mode, fn) => {
+    const db = await dbp; if(!db) return null;
+    return new Promise(res => {
+      try{
+        const t = db.transaction('m', mode), q = fn(t.objectStore('m'));
+        q.onsuccess = () => res(q.result); q.onerror = () => res(null);
+      }catch(e){ res(null); }
+    });
+  };
+  return {
+    async get(k){ return mem.has(k) ? mem.get(k) : (await tx('readonly', s => s.get(k))) || null; },
+    async put(k, blob){ mem.set(k, blob); await tx('readwrite', s => s.put(blob, k)); },
+    async del(k){ mem.delete(k); await tx('readwrite', s => s.delete(k)); },
+    async keys(){ return [...new Set([...mem.keys(), ...((await tx('readonly', s => s.getAllKeys())) || [])])]; },
+  };
+})();
+
+/* ================= 声音 ================= */
+let actx = null;
+function chime(big){
+  try{
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const notes = big ? [523,659,784,1047,1319,1568] : [784,988,1319];
+    notes.forEach((f, i) => {
+      const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime + i * 0.11;
+      o.type = 'triangle'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+      o.connect(g).connect(actx.destination); o.start(t); o.stop(t + 0.55);
+    });
+  }catch(e){}
+}
+function speak(text){
+  try{
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-CN'; u.rate = 0.95; u.pitch = 1.25;
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+const withName = t => t.replaceAll('{名字}', config.name);
+
+/* ================= 彩带 ================= */
+const fx = document.getElementById('fx'), fctx = fx.getContext('2d');
+let parts = [], fxRunning = false;
+function fitFx(){ fx.width = innerWidth * devicePixelRatio; fx.height = innerHeight * devicePixelRatio; }
+addEventListener('resize', fitFx); fitFx();
+function confetti(n, x = innerWidth/2, y = innerHeight/2){
+  const cols = ['#ff8a7a','#7cc6ff','#8be08b','#c9a2ff','#ffc83d','#5fd5c8'];
+  for(let i = 0; i < n; i++){
+    const a = Math.random() * Math.PI * 2, v = 4 + Math.random() * 9;
+    parts.push({x, y, vx:Math.cos(a)*v, vy:Math.sin(a)*v - 6, r:5 + Math.random()*7,
+      c:cols[i % cols.length], rot:Math.random()*6, vr:(Math.random()-.5)*.4, life:1, star:Math.random() < .3});
+  }
+  if(!fxRunning){ fxRunning = true; requestAnimationFrame(tick); }
+}
+function tick(){
+  const d = devicePixelRatio;
+  fctx.clearRect(0, 0, fx.width, fx.height);
+  parts = parts.filter(p => p.life > 0);
+  for(const p of parts){
+    p.vy += .25; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life -= .008;
+    fctx.save(); fctx.globalAlpha = Math.max(p.life, 0); fctx.translate(p.x*d, p.y*d); fctx.rotate(p.rot);
+    if(p.star){ fctx.font = (p.r*4*d) + 'px serif'; fctx.fillText('⭐', -p.r*2*d, p.r*2*d); }
+    else { fctx.fillStyle = p.c; fctx.fillRect(-p.r*d, -p.r*.5*d, p.r*2*d, p.r*d); }
+    fctx.restore();
+  }
+  if(parts.length) requestAnimationFrame(tick); else { fxRunning = false; fctx.clearRect(0,0,fx.width,fx.height); }
+}
+
+/* ================= 主界面 ================= */
+const board = document.getElementById('board'), starsEl = document.getElementById('stars');
+
+function render(){
+  document.getElementById('hello').textContent = config.name;
+  const done = todayDone(), tasks = todayTasks();
+  starsEl.innerHTML = tasks.map(t => `<span class="star ${done.includes(t.id) ? 'on' : ''}" data-id="${t.id}">⭐</span>`).join('');
+  const n = tasks.filter(t => done.includes(t.id)).length, total = tasks.length || 1;
+  const pct = n / total;
+  document.getElementById('fill').style.width = (pct * 100) + '%';
+  document.getElementById('walker').style.left = Math.min(Math.max(pct * 100, 4), 96) + '%';
+  document.getElementById('goal').classList.toggle('won', n >= total);
+  document.getElementById('walker').classList.toggle('won', n >= total);
+  document.getElementById('count').textContent = `${n}/${total}`;
+  board.innerHTML = '';
+  tasks.forEach((t, i) => {
+    const b = document.createElement('button');
+    const isDone = done.includes(t.id);
+    b.className = 'card' + (isDone ? ' done' : '');
+    b.dataset.id = t.id;
+    b.style.setProperty('--tint', `color-mix(in srgb, var(${COLORS[i % COLORS.length]}) 35%, white)`);
+    b.innerHTML = `<div class="bubble">${t.emoji}</div><div class="label"></div>`;
+    b.querySelector('.label').textContent = t.name;
+    b.onclick = () => tapTask(t, b);
+    board.appendChild(b);
+  });
+}
+
+/* ================= 播放 ================= */
+const stage = document.getElementById('stage'), video = document.getElementById('video');
+const fallback = document.getElementById('fallback');
+const skipBtn = document.getElementById('skip');
+let playing = false, busy = false, endPlay = null, voiceAudio = null, urls = [];
+
+async function playClip(key, emoji, praise){
+  playing = true;
+  const [vBlob, aBlob] = await Promise.all([media.get('v_' + key), media.get('a_' + key)]);
+  urls.forEach(u => URL.revokeObjectURL(u)); urls = [];
+  stage.classList.add('show');
+  // 前 2 秒不能跳过，免得孩子兴奋拍屏幕把奖励秒关
+  skipBtn.style.visibility = 'hidden';
+  const skipTimer = setTimeout(() => skipBtn.style.visibility = 'visible', 2000);
+
+  return new Promise(resolve => {
+    let finished = false, timer = null;
+    endPlay = () => {
+      if(finished) return; finished = true;
+      clearTimeout(timer); clearTimeout(skipTimer);
+      video.pause(); video.removeAttribute('src'); video.load();
+      if(voiceAudio){ voiceAudio.pause(); voiceAudio = null; }
+      try{ speechSynthesis.cancel(); }catch(e){}
+      stage.classList.remove('show'); playing = false; endPlay = null; resolve();
+    };
+
+    if(aBlob){
+      const u = URL.createObjectURL(aBlob); urls.push(u);
+      voiceAudio = new Audio(u); voiceAudio.play().catch(() => {});
+    } else {
+      speak(praise);
+    }
+
+    if(vBlob){
+      const u = URL.createObjectURL(vBlob); urls.push(u);
+      fallback.style.display = 'none'; video.style.display = 'block';
+      video.src = u; video.volume = aBlob ? 0.5 : 1;
+      video.onended = endPlay;
+      video.play().catch(() => { video.muted = true; video.play().catch(endPlay); });
+      timer = setTimeout(endPlay, 30000);
+    } else {
+      video.style.display = 'none'; fallback.style.display = 'flex';
+      document.getElementById('fbEmoji').textContent = emoji;
+      document.getElementById('fbText').textContent = praise;
+      confetti(60);
+      timer = setTimeout(endPlay, 3800);
+    }
+  });
+}
+skipBtn.addEventListener('click', e => { e.stopPropagation(); endPlay && endPlay(); });
+
+const wait = ms => new Promise(r => setTimeout(r, ms));
+// busy 从点卡一直锁到大庆祝结束，中间的点击一律忽略
+async function tapTask(t, cardEl){
+  if(busy) return;
+  busy = true;
+  try{
+    chime(false);
+    const wasDone = todayDone().includes(t.id);
+    await playClip(t.id, t.emoji, withName(t.praise || '真棒！'));
+    if(wasDone) return;
+
+    setDone(t.id, true);
+    const r = cardEl.getBoundingClientRect();
+    render();
+    const w = document.getElementById('walker');
+    w.classList.remove('hop'); void w.offsetWidth; w.classList.add('hop');
+    chime(false);
+    confetti(40, r.left + r.width/2, r.top + r.height/2);
+
+    if(dayStat(dayKey()).full){
+      await wait(700);
+      chime(true); confetti(160);
+      await playClip('all', '🎉', withName(config.allPraise));
+      confetti(120);
+    }
+  } finally {
+    busy = false;
+  }
+}
+
+/* 跨天：定时检查，App 从后台切回来时也马上检查 */
+let lastDay = dayKey();
+function checkDay(){
+  if(dayKey() !== lastDay && !busy){ lastDay = dayKey(); render(); return true; }
+  return false;
+}
+setInterval(checkDay, 30000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) checkDay(); });
+
+/* ================= 家长模式（长按齿轮 2 秒） ================= */
+const gear = document.getElementById('gear'), panel = document.getElementById('panel');
+let holdTimer = null;
+const startHold = e => { e.preventDefault(); gear.classList.add('holding'); holdTimer = setTimeout(openPanel, 2000); };
+const stopHold = () => { gear.classList.remove('holding'); clearTimeout(holdTimer); };
+gear.addEventListener('pointerdown', startHold);
+['pointerup','pointerleave','pointercancel'].forEach(ev => gear.addEventListener(ev, stopHold));
+gear.addEventListener('contextmenu', e => e.preventDefault());
+
+function openPanel(){
+  stopHold();
+  document.getElementById('kidName').value = config.name;
+  document.getElementById('allPraise').value = config.allPraise;
+  renderAvatar(document.getElementById('avatarPrev')); renderToday(); renderTaskList(); renderMedia(document.getElementById('allMedia'), 'all'); renderHist(); renderBars();
+  panel.classList.add('show');
+}
+
+/* 今天逐项开关：家长补点或撤销误点 */
+function renderToday(){
+  const done = todayDone();
+  document.getElementById('todayList').innerHTML = todayTasks().map(t =>
+    `<button class="btn tog ${done.includes(t.id) ? 'on' : ''}" data-id="${t.id}">${t.emoji} ${t.name} ${done.includes(t.id) ? '✅' : '⬜'}</button>`
+  ).join('');
+  document.querySelectorAll('#todayList .tog').forEach(b => b.onclick = () => {
+    setDone(b.dataset.id, !todayDone().includes(b.dataset.id));
+    renderToday(); renderHist(); renderBars(); render();
+  });
+}
+document.getElementById('closePanel').onclick = () => {
+  config.name = document.getElementById('kidName').value.trim() || '小宝';
+  config.allPraise = document.getElementById('allPraise').value.trim() || DEFAULT_CONFIG.allPraise;
+  saveConfig(); panel.classList.remove('show'); render();
+};
+
+function renderTaskList(){
+  const list = document.getElementById('taskList');
+  list.innerHTML = '';
+  config.tasks.forEach((t, i) => {
+    const el = document.createElement('div');
+    el.className = 'task-edit';
+    el.innerHTML = `
+      <div class="grid">
+        <label class="field">图标<input type="text" class="emoji" maxlength="4"></label>
+        <label class="field">名称<input type="text" class="name"></label>
+        <label class="field wide">夸奖的话（没录音时用电脑语音念）<input type="text" class="praise"></label>
+      </div>
+      <div class="media"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn up">↑</button><button class="btn down">↓</button>
+        <span style="flex:1"></span><button class="btn danger del">删除任务</button>
+      </div>`;
+    const bind = (sel, key) => {
+      const inp = el.querySelector(sel); inp.value = t[key] || '';
+      inp.oninput = () => { t[key] = inp.value; saveConfig(); };
+    };
+    bind('.emoji','emoji'); bind('.name','name'); bind('.praise','praise');
+    el.querySelector('.up').onclick = () => move(i, -1);
+    el.querySelector('.down').onclick = () => move(i, 1);
+    el.querySelector('.del').onclick = async () => {
+      if(!confirm(`删除「${t.name}」？它的短片和录音也会删掉。以前的记录会保留。`)) return;
+      config.tasks.splice(i, 1); saveConfig();
+      // 从今天的快照里拿掉，今天的进度马上按剩下的任务算
+      const k = dayKey();
+      plans[k] = ensurePlan(k).filter(id => id !== t.id);
+      days[k] = todayDone().filter(id => id !== t.id);
+      saveDays();
+      await media.del('v_' + t.id); await media.del('a_' + t.id);
+      renderTaskList(); renderToday(); renderBars(); render();
+    };
+    renderMedia(el.querySelector('.media'), t.id);
+    list.appendChild(el);
+  });
+}
+function move(i, d){
+  const j = i + d; if(j < 0 || j >= config.tasks.length) return;
+  [config.tasks[i], config.tasks[j]] = [config.tasks[j], config.tasks[i]];
+  saveConfig(); renderTaskList();
+}
+document.getElementById('addTask').onclick = () => {
+  const t = {id:'t' + Date.now().toString(36), emoji:'⭐', name:'新任务', praise:'做得真棒！'};
+  config.tasks.push(t); saveConfig();
+  // 默认明天生效，免得孩子刚全部完成，又冒出一个没做的
+  if(confirm('新任务今天就开始吗？\n\n确定 = 今天就开始\n取消 = 从明天开始')){
+    ensurePlan().push(t.id); saveDays();
+  }
+  renderTaskList(); renderToday(); render();
+};
+
+/* 每个任务的短片 / 录音 */
+const picker = document.getElementById('pickFile');
+function pickFile(accept){
+  return new Promise(res => {
+    picker.value = ''; picker.accept = accept;
+    picker.onchange = () => res(picker.files[0] || null);
+    picker.click();
+  });
+}
+let recorder = null;
+async function renderMedia(box, key){
+  const [v, a] = await Promise.all([media.get('v_' + key), media.get('a_' + key)]);
+  box.innerHTML = `
+    <span class="tag ${v ? 'ok' : ''}">${v ? '🎬 已有短片' : '🎬 没有短片'}</span>
+    <button class="btn pv">选短片</button>
+    ${v ? '<button class="btn dv">删短片</button>' : ''}
+    <span class="tag ${a ? 'ok' : ''}">${a ? '🎙️ 已录音' : '🎙️ 没录音'}</span>
+    <button class="btn rc">录音</button>
+    <button class="btn pa">选音频</button>
+    ${a ? '<button class="btn da">删录音</button>' : ''}
+    <button class="btn primary try">▶ 试播</button>`;
+  const $ = s => box.querySelector(s);
+  $('.pv').onclick = async () => { const f = await pickFile('video/*'); if(f){ await media.put('v_' + key, f); renderMedia(box, key); } };
+  $('.pa').onclick = async () => { const f = await pickFile('audio/*'); if(f){ await media.put('a_' + key, f); renderMedia(box, key); } };
+  if(v) $('.dv').onclick = async () => { await media.del('v_' + key); renderMedia(box, key); };
+  if(a) $('.da').onclick = async () => { await media.del('a_' + key); renderMedia(box, key); };
+  $('.try').onclick = async () => {
+    if(busy) return;
+    busy = true;
+    const t = config.tasks.find(x => x.id === key);
+    const praise = t ? withName(t.praise) : withName(config.allPraise);
+    panel.classList.remove('show');
+    try{ await playClip(key, t ? t.emoji : '🎉', praise); }
+    finally{ busy = false; panel.classList.add('show'); }
+  };
+  const rc = $('.rc');
+  rc.onclick = async () => {
+    if(recorder){ recorder.stop(); return; }
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      const chunks = [];
+      recorder = new MediaRecorder(stream);
+      recorder.ondataavailable = e => chunks.push(e.data);
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(tr => tr.stop());
+        const blob = new Blob(chunks, {type: recorder.mimeType || 'audio/webm'});
+        recorder = null;
+        await media.put('a_' + key, blob); renderMedia(box, key);
+      };
+      recorder.start();
+      rc.textContent = '■ 停止录音'; rc.classList.add('rec');
+    }catch(e){
+      recorder = null;
+      alert('这里用不了麦克风（需要 https 或 localhost 打开）。可以先用手机录好，再点「选音频」。');
+    }
+  };
+}
+
+function renderHist(){
+  const h = document.getElementById('hist'), wk = '日一二三四五六';
+  let html = '';
+  for(let i = 6; i >= 0; i--){
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const n = dayStat(dayKey(d)).n;
+    html += `<div>${i === 0 ? '今天' : '周' + wk[d.getDay()]}<b>${n}⭐</b></div>`;
+  }
+  h.innerHTML = html;
+}
+// 分母只算"那天这个任务在计划里"的日子：装 App 之前、任务加入之前的日子不算
+function renderBars(){
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth(), upto = now.getDate();
+  document.getElementById('bars').innerHTML = config.tasks.map(t => {
+    let c = 0, total = 0;
+    for(let d = 1; d <= upto; d++){
+      const k = dayKey(new Date(y, m, d)), done = days[k] || [];
+      const planned = plans[k] ? plans[k].includes(t.id) : done.length > 0;
+      if(!planned) continue;
+      total++; if(done.includes(t.id)) c++;
+    }
+    const p = total ? Math.round(c / total * 100) : 0;
+    return `<div class="bar"><span>${t.emoji}</span><span>${t.name}</span><div class="bg"><i style="width:${p}%"></i></div><span>${c}/${total} 天</span></div>`;
+  }).join('');
+}
+document.getElementById('resetToday').onclick = () => {
+  if(!confirm('清空今天点亮的星星？')) return;
+  delete days[dayKey()]; saveDays(); renderToday(); renderHist(); renderBars(); render();
+};
+
+/* ================= 月历 ================= */
+const monthEl = document.getElementById('month');
+let view = new Date(); view.setDate(1);
+function renderMonth(){
+  const y = view.getFullYear(), m = view.getMonth(), today = dayKey();
+  const now = new Date(), isThisMonth = y === now.getFullYear() && m === now.getMonth();
+  document.getElementById('mTitle').textContent = `${y}年${m + 1}月`;
+  document.getElementById('mNext').disabled = isThisMonth;
+  const first = new Date(y, m, 1).getDay(), last = new Date(y, m + 1, 0).getDate();
+  let html = '日一二三四五六'.split('').map(w => `<div class="wk">${w}</div>`).join('');
+  for(let i = 0; i < first; i++) html += '<div class="day blank"></div>';
+  let fullDays = 0, starSum = 0, streak = 0;
+  for(let d = 1; d <= last; d++){
+    const date = new Date(y, m, d), k = dayKey(date), st = dayStat(k);
+    const future = date > now && k !== today;
+    if(st.full && st.n) fullDays++;
+    starSum += st.n;
+    let inner = `<span class="n">${d}</span>`, cls = 'day';
+    if(future) cls += ' future';
+    else if(st.full && st.n){ cls += ' full'; inner += '<span class="s">👑</span>'; }
+    else if(st.n){ inner += `<div class="lvl" style="height:${st.n / st.total * 100}%"></div><span class="s sm">⭐</span><span class="p">${st.n}</span>`; }
+    if(k === today) cls += ' today';
+    html += `<div class="${cls}">${inner}</div>`;
+  }
+  document.getElementById('cal').innerHTML = html;
+  // 连续全部完成的天数（今天还没做完不算断）
+  const d = new Date();
+  if(!dayStat(dayKey(d)).full) d.setDate(d.getDate() - 1);
+  while(dayStat(dayKey(d)).full && dayStat(dayKey(d)).n){ streak++; d.setDate(d.getDate() - 1); }
+  document.getElementById('msum').innerHTML =
+    `<div>全部完成<b>${fullDays} 天</b></div><div>这个月的星星<b>${starSum} ⭐</b></div><div>连续全部完成<b>${streak} 天</b></div>`;
+}
+document.getElementById('openMonth').onclick = () => { chime(false); view = new Date(); view.setDate(1); renderMonth(); monthEl.classList.add('show'); };
+document.getElementById('mClose').onclick = () => monthEl.classList.remove('show');
+document.getElementById('mPrev').onclick = () => { view.setMonth(view.getMonth() - 1); renderMonth(); };
+document.getElementById('mNext').onclick = () => { view.setMonth(view.getMonth() + 1); renderMonth(); };
+
+/* ================= 进度小人头像（照片或循环短视频） ================= */
+const avatarUrls = new Map();
+async function renderAvatar(box){
+  const b = await media.get('avatar');
+  if(avatarUrls.has(box)) URL.revokeObjectURL(avatarUrls.get(box));
+  avatarUrls.delete(box);
+  if(!b){ box.textContent = '🧒'; return; }
+  const u = URL.createObjectURL(b); avatarUrls.set(box, u);
+  box.innerHTML = b.type.startsWith('video/')
+    ? `<video src="${u}" autoplay loop muted playsinline webkit-playsinline></video>`
+    : `<img src="${u}" alt="">`;
+  const v = box.querySelector('video'); if(v){ v.muted = true; v.play().catch(() => {}); }
+}
+document.getElementById('pickAvatar').onclick = async () => {
+  const f = await pickFile('image/*,video/*');
+  if(!f) return;
+  await media.put('avatar', f);
+  renderAvatar(document.getElementById('avatarPrev')); renderAvatar(document.getElementById('face'));
+};
+document.getElementById('delAvatar').onclick = async () => {
+  await media.del('avatar');
+  renderAvatar(document.getElementById('avatarPrev')); renderAvatar(document.getElementById('face'));
+};
+
+/* ================= 备份 / 恢复 ================= */
+const blobToDataURL = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(b); });
+async function makeBackup(withMedia){
+  const hint = document.getElementById('backupHint');
+  hint.textContent = '正在打包…';
+  const data = {app:'star-habits', v:1, at:new Date().toISOString(), config, days, totals, plans, media:{}};
+  if(withMedia){
+    for(const k of await media.keys()){
+      const b = await media.get(k);
+      if(b) data.media[k] = await blobToDataURL(b);
+    }
+  }
+  const name = `星星打卡备份-${dayKey()}${withMedia ? '-完整' : ''}.json`;
+  const file = new File([JSON.stringify(data)], name, {type:'application/json'});
+  hint.textContent = `已生成 ${name}（${(file.size / 1048576).toFixed(1)} MB），请选择保存位置。`;
+  // iPad / iPhone 上用分享面板「存储到文件」，其他情况直接下载
+  try{
+    if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:name}); return; }
+  }catch(e){ if(e.name === 'AbortError') return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+document.getElementById('backupSmall').onclick = () => makeBackup(false);
+document.getElementById('backupFull').onclick = () => makeBackup(true);
+document.getElementById('restore').onclick = async () => {
+  const f = await pickFile('application/json,.json');
+  if(!f) return;
+  let data;
+  try{ data = JSON.parse(await f.text()); }catch(e){ alert('这个文件打不开，不是星星打卡的备份。'); return; }
+  if(data.app !== 'star-habits'){ alert('这个文件不是星星打卡的备份。'); return; }
+  if(!confirm(`用 ${data.at.slice(0, 10)} 的备份覆盖现在的设置和记录？`)) return;
+  config = data.config; days = data.days || {}; totals = data.totals || {}; plans = data.plans || {};
+  saveConfig(); saveDays();
+  for(const [k, url] of Object.entries(data.media || {})) await media.put(k, await (await fetch(url)).blob());
+  alert('恢复完成！');
+  location.reload();
+};
+
+/* 离线可用 + 请浏览器不要自动清理这里的数据 */
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){}
+
+render();
+renderAvatar(document.getElementById('face'));
+</script>
+</body>
+</html>
