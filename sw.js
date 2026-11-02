@@ -1,5 +1,5 @@
 // 离线缓存：第一次打开后，不联网也能用。改了页面就把版本号加一，用户下次联网打开时自动更新。
-const CACHE = 'star-habits-v4';
+const CACHE = 'star-habits-v5';
 const FILES = ['./', './index.html', './manifest.json', './apple-touch-icon.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -14,14 +14,15 @@ self.addEventListener('activate', e => {
   );
 });
 
-// 先用缓存（秒开、断网可用），同时在后台联网更新缓存
+// 页面本身：联网时先取最新版（3 秒取不到就用缓存），断网用缓存
+// 图标等其他文件：先用缓存，后台顺便更新
 self.addEventListener('fetch', e => {
   if(e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
-  e.respondWith(
-    caches.open(CACHE).then(async c => {
-      const hit = await c.match(e.request, {ignoreSearch: true});
-      const net = fetch(e.request).then(r => { if(r.ok) c.put(e.request, r.clone()); return r; }).catch(() => hit);
-      return hit || net;
-    })
-  );
+  e.respondWith(caches.open(CACHE).then(async c => {
+    const hit = await c.match(e.request, {ignoreSearch: true});
+    const net = fetch(e.request).then(r => { if(r.ok) c.put(e.request, r.clone()); return r; });
+    if(e.request.mode !== 'navigate') return hit || net.catch(() => hit);
+    const timeout = new Promise(res => setTimeout(() => res(hit), 3000));
+    return Promise.race([net, timeout]).then(r => r || net).catch(() => hit);
+  }));
 });
