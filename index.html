@@ -24,7 +24,7 @@ body{
   background:radial-gradient(circle at 20% 0%,#fffaf0 0,var(--bg) 45%,var(--bg2) 100%) fixed;
   color:var(--ink);
   font-family:"PingFang SC","HarmonyOS Sans SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
-  -webkit-user-select:none;user-select:none;touch-action:manipulation;overflow-x:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;overflow-x:hidden;
 }
 button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 
@@ -130,6 +130,9 @@ main{
   box-shadow:var(--shadow);border:4px solid transparent;transition:transform .12s;
 }
 .card:active{transform:translateY(4px) scale(.97)}
+/* 家长长按确认：金色从下往上慢慢填满卡片 */
+.card .hold{position:absolute;inset:0;border-radius:24px;background:rgba(255,200,61,.45);transform:scaleY(0);transform-origin:bottom;pointer-events:none}
+.card.pressing .hold{transform:scaleY(1);transition:transform 1.2s linear}
 .bubble{
   width:68%;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;
   font-size:clamp(46px,11vw,92px);background:var(--tint);
@@ -277,7 +280,9 @@ canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:30}
   <p class="hint">
     · 短片：把 AI 生成的 5 秒小视频选进来，孩子点任务时会全屏播放。<br>
     · 录音：录下你自己的夸奖，会和短片一起播放；没录音时用电脑语音念。<br>
-    · 当天点亮的任务再点一次会重播，不会重复得星。<br>
+    · 孩子轻点任务卡：播放短片，提醒「去刷牙吧」，不会得星。<br>
+    · 孩子做完后，家长<b>按住卡片 1 秒多</b>（卡片会慢慢变金色）确认，才点亮星星并播放夸奖。<br>
+    · 已点亮的任务再点一次会重播夸奖，不会重复得星。<br>
     · 所有设置、短片和录音只存在这台设备的浏览器里，不会上传。
   </p>
 </div></div>
@@ -465,9 +470,9 @@ function render(){
     b.className = 'card' + (isDone ? ' done' : '');
     b.dataset.id = t.id;
     b.style.setProperty('--tint', TINTS[i % TINTS.length]);
-    b.innerHTML = `<div class="bubble">${t.emoji}</div><div class="label"></div>`;
+    b.innerHTML = `<div class="hold"></div><div class="bubble">${t.emoji}</div><div class="label"></div>`;
     b.querySelector('.label').textContent = t.name;
-    b.onclick = () => tapTask(t, b);
+    bindPress(b, t);
     board.appendChild(b);
   });
 }
@@ -478,7 +483,7 @@ const fallback = document.getElementById('fallback');
 const skipBtn = document.getElementById('skip');
 let playing = false, busy = false, endPlay = null, voiceAudio = null, urls = [];
 
-async function playClip(key, emoji, praise){
+async function playClip(key, emoji, praise, opts = {}){
   playing = true;
   // iOS 要求在点击的同一时刻开始播放，所以优先用预载好的内存数据，避免先 await
   let vBlob = media.peek('v_' + key), aBlob = media.peek('a_' + key);
@@ -501,7 +506,7 @@ async function playClip(key, emoji, praise){
       stage.classList.remove('show'); playing = false; endPlay = null; resolve();
     };
 
-    if(aBlob){
+    if(aBlob && !opts.prompt){
       const u = URL.createObjectURL(aBlob); urls.push(u);
       voiceAudio = new Audio(u); voiceAudio.play().catch(() => speak(praise));
     } else {
@@ -511,7 +516,7 @@ async function playClip(key, emoji, praise){
     if(vBlob){
       const u = URL.createObjectURL(vBlob); urls.push(u);
       fallback.style.display = 'none'; video.style.display = 'block';
-      video.src = u; video.volume = aBlob ? 0.5 : 1;
+      video.src = u; video.volume = aBlob && !opts.prompt ? 0.5 : 1;
       video.onended = endPlay;
       video.play().catch(() => { video.muted = true; video.play().catch(endPlay); });
       timer = setTimeout(endPlay, 30000);
@@ -519,24 +524,34 @@ async function playClip(key, emoji, praise){
       video.style.display = 'none'; fallback.style.display = 'flex';
       document.getElementById('fbEmoji').textContent = emoji;
       document.getElementById('fbText').textContent = praise;
-      confetti(60);
-      timer = setTimeout(endPlay, 3800);
+      if(!opts.prompt) confetti(60);
+      timer = setTimeout(endPlay, opts.prompt ? 3000 : 3800);
     }
   });
 }
 skipBtn.addEventListener('click', e => { e.stopPropagation(); endPlay && endPlay(); });
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
-// busy 从点卡一直锁到大庆祝结束，中间的点击一律忽略
-async function tapTask(t, cardEl){
+// 孩子点卡：没完成的播短片当"示范"，提醒去做；已完成的重播夸奖。都不加星。
+async function tapTask(t){
   if(busy) return;
   busy = true;
   try{
     chime(false);
-    const wasDone = todayDone().includes(t.id);
-    await playClip(t.id, t.emoji, withName(t.praise || '真棒！'));
-    if(wasDone) return;
+    if(todayDone().includes(t.id)) await playClip(t.id, t.emoji, withName(t.praise || '真棒！'));
+    else await playClip(t.id, t.emoji, `${config.name}，去${t.name}吧！`, {prompt:true});
+  } finally {
+    busy = false;
+  }
+}
 
+// 家长长按卡片确认：点亮星星，播夸奖。busy 一直锁到大庆祝结束，中间的点击一律忽略
+async function confirmTask(t, cardEl){
+  if(busy || todayDone().includes(t.id)) return;
+  busy = true;
+  try{
+    chime(true);
+    await playClip(t.id, t.emoji, withName(t.praise || '真棒！'));
     setDone(t.id, true);
     const r = cardEl.getBoundingClientRect();
     justDone = true;
@@ -566,6 +581,26 @@ document.getElementById('goal').onclick = async () => {
     confetti(120);
   } finally { busy = false; }
 };
+
+/* 卡片：轻点 = 孩子看示范；按住 1.2 秒 = 家长确认完成。手指移动（滚动页面）就取消 */
+const HOLD_MS = 1200;
+function bindPress(b, t){
+  let timer = null, fired = false, x0 = 0, y0 = 0;
+  const cancel = () => { clearTimeout(timer); timer = null; b.classList.remove('pressing'); };
+  b.addEventListener('pointerdown', e => {
+    if(busy) return;
+    fired = false; x0 = e.clientX; y0 = e.clientY;
+    if(!todayDone().includes(t.id)){
+      b.classList.add('pressing');
+      timer = setTimeout(() => { fired = true; cancel(); confirmTask(t, b); }, HOLD_MS);
+    }
+  });
+  b.addEventListener('pointermove', e => { if(timer && Math.hypot(e.clientX - x0, e.clientY - y0) > 12){ cancel(); fired = true; } });
+  b.addEventListener('pointerup', () => { const wasTap = !fired; cancel(); if(wasTap) tapTask(t); fired = true; });
+  b.addEventListener('pointercancel', () => { cancel(); fired = true; });
+  b.addEventListener('pointerleave', () => { if(timer){ cancel(); fired = true; } });
+  b.addEventListener('contextmenu', e => e.preventDefault());
+}
 
 /* 跨天：定时检查，App 从后台切回来时也马上检查 */
 let lastDay = dayKey();

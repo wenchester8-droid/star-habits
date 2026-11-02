@@ -1,5 +1,5 @@
 // 离线缓存：第一次打开后，不联网也能用。改了页面就把版本号加一，用户下次联网打开时自动更新。
-const CACHE = 'star-habits-v7';
+const CACHE = 'star-habits-v8';
 const FILES = ['./', './index.html', './manifest.json', './apple-touch-icon.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
