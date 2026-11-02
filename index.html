@@ -47,24 +47,53 @@ header{
 /* ---------- 今天的进度：小人沿路走向礼物 ---------- */
 .track{max-width:1100px;margin:0 auto;padding:2px 16px 6px;display:flex;align-items:center;gap:12px}
 .road{position:relative;flex:1;height:26px;border-radius:99px;background:#fff;box-shadow:inset 0 3px 0 rgba(160,110,40,.15)}
-.track{padding-top:40px}
+.track{padding-top:108px}
 .road .fill{position:absolute;inset:0 auto 0 0;border-radius:99px;background:linear-gradient(90deg,#ffd76a,#ffb13d);transition:width .8s cubic-bezier(.3,1.4,.5,1)}
 /* 踏脚石：每完成一项铺一块，石头上是刚做完那件事的图标 */
 .stone{position:absolute;top:50%;transform:translate(-50%,-50%);border-radius:50%;display:grid;place-items:center;
   background:#fff;border:3px solid #ecd9b6;line-height:1;transition:all .4s}
 .stone.on{background:#fff6c9;border-color:var(--gold-deep);box-shadow:0 2px 0 rgba(160,110,40,.25)}
-.stone.on.new{animation:pop .6s cubic-bezier(.3,1.8,.5,1)}
-.road .walker{position:absolute;top:50%;font-size:46px;transform:translate(-50%,-92%);transition:left .8s cubic-bezier(.3,1.4,.5,1);z-index:2}
-.road .walker.hop{animation:hop .5s ease-out 2}
-@keyframes hop{50%{transform:translate(-50%,-140%)}}
-/* 小人一直轻轻摇头；全部完成后改成开心地蹦 */
-.walker .face{display:block;line-height:1;transform-origin:50% 85%;animation:wobble 2.6s ease-in-out infinite}
-.walker.won .face{animation:dance 0.9s ease-in-out infinite}
-.walker .face img,.walker .face video{display:block;width:62px;height:62px;border-radius:50%;object-fit:cover;
+.stone.on.new{animation:popStone .6s cubic-bezier(.3,1.8,.5,1)}
+@keyframes popStone{0%{transform:translate(-50%,-50%) scale(.2) rotate(-40deg)}100%{transform:translate(-50%,-50%) scale(1) rotate(0)}}
+/* 火柴人：头像当头，下面是火柴人身体；脚踩在石头顶上 */
+.road .walker{position:absolute;top:50%;display:flex;flex-direction:column;align-items:center;
+  transform:translate(-50%,calc(-100% - 17px));transition:left .9s ease-in-out;z-index:2;pointer-events:none}
+.road .walker.hop{animation:hop .45s ease-out 2}
+@keyframes hop{50%{transform:translate(-50%,calc(-100% - 45px))}}
+.walker .face{display:block;font-size:42px;line-height:1;transform-origin:50% 90%;animation:wobble 2.6s ease-in-out infinite;position:relative;z-index:1}
+.walker .face img,.walker .face video{display:block;width:44px;height:44px;border-radius:50%;object-fit:cover;
   border:3px solid #fff;box-shadow:0 3px 8px rgba(120,80,20,.3);background:#fff}
+/* 抠好的透明头像：不加圆框，直接显示头的轮廓 */
+.walker .face img.cut{width:auto;height:46px;border:0;border-radius:0;background:none;box-shadow:none;filter:drop-shadow(0 2px 3px rgba(120,80,20,.35))}
+.walker .body{display:block;width:40px;height:64px;margin-top:-3px;overflow:visible}
+.walker .body *{stroke:var(--ink);stroke-width:3.4;stroke-linecap:round;fill:none}
+.walker .body .limb{transform-box:view-box}
+.walker .body .arm-l,.walker .body .arm-r{transform-origin:20px 10px}
+.walker .body .leg-l,.walker .body .leg-r{transform-origin:20px 32px}
+/* 平时：手轻轻摆 */
+.walker .arm-l{animation:armIdle 2.6s ease-in-out infinite}
+.walker .arm-r{animation:armIdle 2.6s ease-in-out infinite reverse}
+@keyframes armIdle{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(8deg)}}
+/* 走路：手脚交替摆动 */
+.walker.walking .leg-l{animation:swing .3s ease-in-out infinite alternate}
+.walker.walking .leg-r{animation:swing .3s ease-in-out infinite alternate-reverse}
+.walker.walking .arm-l{animation:swing .3s ease-in-out infinite alternate-reverse}
+.walker.walking .arm-r{animation:swing .3s ease-in-out infinite alternate}
+.walker.walking .face{animation:bob .3s ease-in-out infinite alternate}
+@keyframes swing{from{transform:rotate(-28deg)}to{transform:rotate(28deg)}}
+@keyframes bob{from{transform:translateY(0) rotate(-3deg)}to{transform:translateY(-3px) rotate(3deg)}}
+/* 全部完成：举手欢呼、蹦跳 */
+.walker.won .face{animation:dance .9s ease-in-out infinite}
+.walker.won .arm-l{animation:cheerL .45s ease-in-out infinite alternate}
+.walker.won .arm-r{animation:cheerR .45s ease-in-out infinite alternate}
+.walker.won .leg-l{transform:rotate(-12deg)}
+.walker.won .leg-r{transform:rotate(12deg)}
+@keyframes cheerL{from{transform:rotate(100deg)}to{transform:rotate(140deg)}}
+@keyframes cheerR{from{transform:rotate(-100deg)}to{transform:rotate(-140deg)}}
 @keyframes wobble{0%,100%{transform:rotate(0)}15%{transform:rotate(-12deg)}30%{transform:rotate(10deg)}45%{transform:rotate(-6deg)}60%{transform:rotate(0)}}
 .avatar-prev{width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--line);background:#fff;display:grid;place-items:center;font-size:36px;overflow:hidden}
 .avatar-prev img,.avatar-prev video{width:100%;height:100%;object-fit:cover}
+.avatar-prev img.cut{object-fit:contain}
 .goal{font-size:40px;flex:none;padding:0;line-height:1}
 .goal.won{animation:dance 1s ease-in-out infinite}
 .goal:disabled{cursor:default}
@@ -121,7 +150,7 @@ main{
 /* 横放平板：两行刚好铺满一屏 */
 @media (orientation:landscape) and (min-width:600px){
   main{grid-template-columns:repeat(var(--cols,3),1fr)}
-  main .card{aspect-ratio:auto;height:calc((100vh - 225px) / var(--rows,2));height:calc((100dvh - 225px) / var(--rows,2));min-height:140px}
+  main .card{aspect-ratio:auto;height:calc((100vh - 292px) / var(--rows,2));height:calc((100dvh - 292px) / var(--rows,2));min-height:140px}
   main .bubble{width:auto;height:58%}
 }
 .card{
@@ -215,7 +244,13 @@ canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:30}
 </header>
 
 <div class="track">
-  <div class="road" id="road"><div class="fill" id="fill"></div><div id="stones"></div><div class="walker" id="walker"><span class="face" id="face">🧒</span></div></div>
+  <div class="road" id="road"><div class="fill" id="fill"></div><div id="stones"></div><div class="walker" id="walker"><span class="face" id="face">🧒</span><svg class="body" viewBox="0 0 40 64" aria-hidden="true">
+    <line x1="20" y1="2" x2="20" y2="32"/>
+    <line class="limb arm-l" x1="20" y1="10" x2="8" y2="28"/>
+    <line class="limb arm-r" x1="20" y1="10" x2="32" y2="28"/>
+    <line class="limb leg-l" x1="20" y1="32" x2="12" y2="61"/>
+    <line class="limb leg-r" x1="20" y1="32" x2="28" y2="61"/>
+  </svg></div></div>
   <button class="goal" id="goal" aria-label="礼物">🎁</button>
   <div class="count" id="count"></div>
 </div>
@@ -291,7 +326,7 @@ canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:30}
   <div class="row">
     <button class="btn" id="backupSmall">备份记录和设置</button>
     <button class="btn" id="backupFull">完整备份（含短片和录音）</button>
-    <button class="btn" id="restore">从备份恢复</button>
+    <button class="btn" id="restore">导入备份或素材包</button>
   </div>
   <p class="hint" id="backupHint">建议每月做一次完整备份，存到「文件」App 或 iCloud 云盘。换设备、误删 App 时可以从备份恢复。</p>
   <p class="hint">
@@ -473,7 +508,12 @@ function render(){
   }).join('');
   justDone = false;
   document.getElementById('fill').style.width = (n ? pos(n - 1) : 0) + '%';
-  document.getElementById('walker').style.left = (n ? pos(n - 1) : Math.min(pos(0) / 2, 5)) + '%';
+  const walker = document.getElementById('walker'), left = (n ? pos(n - 1) : Math.min(pos(0) / 2, 5)) + '%';
+  if(walker.style.left && walker.style.left !== left){
+    walker.classList.remove('hop'); walker.classList.add('walking');
+    clearTimeout(walker._t); walker._t = setTimeout(() => walker.classList.remove('walking'), 900);
+  }
+  walker.style.left = left;
   document.getElementById('goal').classList.toggle('won', n >= total);
   document.getElementById('goal').disabled = n < total;
   document.getElementById('walker').classList.toggle('won', n >= total);
@@ -576,7 +616,7 @@ async function confirmTask(t, cardEl){
     justDone = true;
     render();
     const w = document.getElementById('walker');
-    w.classList.remove('hop'); void w.offsetWidth; w.classList.add('hop');
+    setTimeout(() => { w.classList.remove('hop'); void w.offsetWidth; w.classList.add('hop'); }, 900);
     chime(false);
     confetti(40, r.left + r.width/2, r.top + r.height/2);
 
@@ -895,7 +935,7 @@ async function renderAvatar(box){
   const u = URL.createObjectURL(b); avatarUrls.set(box, u);
   box.innerHTML = b.type.startsWith('video/')
     ? `<video src="${u}" autoplay loop muted playsinline webkit-playsinline></video>`
-    : `<img src="${u}" alt="">`;
+    : `<img src="${u}" alt=""${b.type === 'image/png' ? ' class="cut"' : ''}>`;
   const v = box.querySelector('video'); if(v){ v.muted = true; v.play().catch(() => {}); }
 }
 document.getElementById('pickAvatar').onclick = async () => {
@@ -940,11 +980,16 @@ document.getElementById('restore').onclick = async () => {
   let data;
   try{ data = JSON.parse(await f.text()); }catch(e){ uiAlert('这个文件打不开，不是星星打卡的备份。'); return; }
   if(data.app !== 'star-habits'){ uiAlert('这个文件不是星星打卡的备份。'); return; }
-  if(!await uiConfirm(`用 ${data.at.slice(0, 10)} 的备份覆盖现在的设置和记录？`, '恢复')) return;
-  config = data.config; days = data.days || {}; totals = data.totals || {}; plans = data.plans || {};
-  saveConfig(); saveDays();
+  const n = Object.keys(data.media || {}).length;
+  if(!data.config){
+    if(!await uiConfirm(`导入素材包：${data.note || ''}\n共 ${n} 个文件（短片、录音或头像），设置和记录不变。`, '导入')) return;
+  } else {
+    if(!await uiConfirm(`用 ${data.at.slice(0, 10)} 的备份覆盖现在的设置和记录？`, '恢复')) return;
+    config = data.config; days = data.days || {}; totals = data.totals || {}; plans = data.plans || {};
+    saveConfig(); saveDays();
+  }
   for(const [k, url] of Object.entries(data.media || {})) await media.put(k, await (await fetch(url)).blob());
-  await uiAlert('恢复完成！');
+  await uiAlert(data.config ? '恢复完成！' : '导入完成！');
   location.reload();
 };
 
