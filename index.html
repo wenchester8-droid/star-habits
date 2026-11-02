@@ -195,7 +195,7 @@ canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:30}
 <body>
 
 <header>
-  <div class="hello" id="hello">小宝</div>
+  <div class="hello" id="hello">小橙子</div>
   <div class="stars" id="stars"></div>
   <button class="calbtn" id="openMonth" aria-label="月历">📅</button>
   <button class="gear" id="gear" aria-label="家长设置（长按）">
@@ -294,7 +294,7 @@ canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:30}
 // 卡片泡泡底色：主题色和白色 35%:65% 混合后的结果（旧版 iOS 不支持 color-mix，直接写死）
 const TINTS = ['#ffd9d4','#d8eeff','#dcf6dc','#efe3ff','#ffe9d1','#cff2ee'];
 const DEFAULT_CONFIG = {
-  name: '小宝',
+  name: '小橙子',
   allPraise: '今天的星星全部点亮啦！你太棒了！',
   tasks: [
     {id:'dress',  emoji:'👕', name:'自己穿衣', praise:'你自己把袖子穿进去啦，扣子也扣好了！'},
@@ -313,6 +313,7 @@ const store = {
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 };
 let config = store.get('hb_config', null) || JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+if(config.name === '小宝'){ config.name = '小橙子'; store.set('hb_config', config); }  // 旧默认名改成小名
 let days = store.get('hb_days', {});
 let totals = store.get('hb_totals', {});   // 旧数据：每天当时有几个任务（没有快照时兜底）
 let plans = store.get('hb_plans', {});     // 每天的任务快照：当天要做哪些任务，统计都以它为准
@@ -646,7 +647,7 @@ function renderToday(){
   });
 }
 document.getElementById('closePanel').onclick = () => {
-  config.name = document.getElementById('kidName').value.trim() || '小宝';
+  config.name = document.getElementById('kidName').value.trim() || '小橙子';
   config.allPraise = document.getElementById('allPraise').value.trim() || DEFAULT_CONFIG.allPraise;
   saveConfig(); panel.classList.remove('show'); render();
 };
