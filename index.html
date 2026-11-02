@@ -154,16 +154,23 @@ header{
 
 /* ---------- 任务卡 ---------- */
 main{
-  display:grid;gap:clamp(12px,2.4vw,22px);
-  grid-template-columns:repeat(2,1fr);
+  display:flex;flex-direction:column;gap:clamp(12px,2.4vw,18px);
   padding:10px 16px calc(env(safe-area-inset-bottom) + 24px);
   max-width:1100px;margin:0 auto;
 }
-@media (min-width:600px){ main{grid-template-columns:repeat(3,1fr)} }
-/* 横放平板：两行刚好铺满一屏 */
+/* 每一类一行：日常 / 学习 / 益智，同一类的泡泡同一个颜色 */
+.cat{display:flex;flex-direction:column;gap:8px}
+.cat-h{display:flex;align-items:center;gap:6px;font-weight:800;font-size:clamp(15px,3vw,20px);color:var(--muted)}
+.cat-h .ic{font-size:1.3em}
+.cards{display:grid;gap:clamp(12px,2.4vw,22px);grid-template-columns:repeat(2,1fr)}
+@media (min-width:600px){ .cards{grid-template-columns:repeat(3,1fr)} }
+/* 横放平板：类别名竖在左边，几行刚好铺满一屏 */
 @media (orientation:landscape) and (min-width:600px){
-  main{grid-template-columns:repeat(var(--cols,3),1fr)}
-  main .card{aspect-ratio:auto;height:calc((100vh - 292px) / var(--rows,2));height:calc((100dvh - 292px) / var(--rows,2));min-height:140px}
+  .cat{flex-direction:row;align-items:stretch}
+  .cat-h{flex:none;width:clamp(44px,5vw,60px);flex-direction:column;justify-content:center;gap:4px;border-radius:20px;background:var(--tint);color:var(--ink);font-size:clamp(14px,1.8vw,18px)}
+  .cat-h .tx{writing-mode:vertical-rl;letter-spacing:4px}
+  .cards{flex:1;grid-template-columns:repeat(var(--cols,3),1fr)}
+  main .card{aspect-ratio:auto;height:calc((100vh - 292px - var(--gaps,0px)) / var(--rows,2));height:calc((100dvh - 292px - var(--gaps,0px)) / var(--rows,2));min-height:120px}
   main .bubble{width:auto;height:58%}
 }
 .card{
@@ -228,7 +235,7 @@ canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:30}
 .btn.tog.on{background:#fff6c9;border-color:var(--gold)}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
-.panel input[type=text]{
+.panel input[type=text],.panel select{
   font:inherit;font-size:16px;color:var(--ink);background:#fff;border:2px solid var(--line);border-radius:12px;padding:8px 10px;min-width:0;
 }
 .task-edit{background:var(--card);border-radius:20px;padding:14px;margin-bottom:12px;box-shadow:0 3px 0 rgba(160,110,40,.12)}
@@ -365,21 +372,26 @@ canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:30}
 
 <script>
 /* ================= 数据 ================= */
-// 卡片泡泡底色：主题色和白色 35%:65% 混合后的结果（旧版 iOS 不支持 color-mix，直接写死）
-const TINTS = ['#ffd9d4','#d8eeff','#dcf6dc','#efe3ff','#ffe9d1','#cff2ee'];
+// 任务分三类，看板上一类一行
+const CATS = [
+  {id:'life',  emoji:'🌞', name:'日常', tint:'#ffe9d1'},
+  {id:'study', emoji:'📚', name:'学习', tint:'#d8eeff'},
+  {id:'play',  emoji:'🧩', name:'益智', tint:'#dcf6dc'},
+];
+const catOf = t => CATS.some(c => c.id === t.cat) ? t.cat : 'life';
 const DEFAULT_CONFIG = {
   name: '小橙子',
+  layout: 2,
   allPraise: '今天的星星全部点亮啦！你太棒了！',
   tasks: [
-    {id:'dress',  emoji:'👕', name:'自己穿衣', ask:'我们自己穿衣服吧！', praise:'你自己把袖子穿进去啦，扣子也扣好了！'},
-    {id:'bfast',  emoji:'🥣', name:'吃早饭',   ask:'我们去吃早饭吧！', praise:'早饭一口一口吃完了，身体有力气啦！'},
-    {id:'math',   emoji:'🔢', name:'学数学',   ask:'我们来学数学吧！', praise:'你自己数出来了，一二三四五！'},
-    {id:'english',emoji:'🔤', name:'学英语',   ask:'我们来学英语吧！', praise:'Good job！你跟着大声说英语啦！'},
-    {id:'book',   emoji:'📖', name:'读绘本',   ask:'我们来读绘本吧！', praise:'你认真听完了一个故事，又知道新故事啦！'},
-    {id:'sport',  emoji:'🏃', name:'去运动',   ask:'我们去运动吧！', praise:'你跑跑跳跳出了一身汗，身体棒棒的！'},
-    {id:'dinner', emoji:'🍚', name:'吃晚饭',   ask:'我们去吃晚饭吧！', praise:'你坐在桌子旁好好吃饭，肚子圆滚滚！'},
-    {id:'toys',   emoji:'🧸', name:'收玩具',   ask:'我们把玩具送回家吧！', praise:'你把玩具一个一个送回家啦！'},
-    {id:'teeth',  emoji:'🪥', name:'刷牙',     ask:'我们去刷牙吧！', praise:'上面下面都刷到了，牙齿亮晶晶！'},
+    {id:'teeth',  cat:'life',  emoji:'🪥', name:'刷牙睡觉', ask:'九点前刷好牙，我们上床睡觉吧！', praise:'牙齿刷得亮晶晶，乖乖上床睡觉啦！'},
+    {id:'eat',    cat:'life',  emoji:'🍚', name:'自己吃饭', ask:'我们自己拿勺子吃饭吧！', praise:'你自己一口一口吃完了，肚子圆滚滚！'},
+    {id:'dress',  cat:'life',  emoji:'👕', name:'自己穿衣', ask:'我们自己穿衣服吧！', praise:'你自己把袖子穿进去啦，衣服穿得整整齐齐！'},
+    {id:'book',   cat:'study', emoji:'📖', name:'读绘本',   ask:'我们来读绘本吧！', praise:'你认真听完了一个故事，又知道新故事啦！'},
+    {id:'math',   cat:'study', emoji:'🔢', name:'学数学',   ask:'我们来学数学吧！', praise:'你自己数出来了，一二三四五！'},
+    {id:'english',cat:'study', emoji:'🔤', name:'说英语',   ask:'我们来说英语吧！', praise:'Good job！你大声说英语啦！'},
+    {id:'sport',  cat:'study', emoji:'🏃', name:'运动',     ask:'我们去运动吧！', praise:'你跑跑跳跳出了一身汗，身体棒棒的！'},
+    {id:'play',   cat:'play',  emoji:'🧩', name:'休闲娱乐', ask:'我们来玩一会儿益智游戏吧！', praise:'你动脑筋把它拼好啦，真聪明！'},
   ]
 };
 
@@ -540,21 +552,30 @@ function render(){
   document.getElementById('goal').disabled = n < total;
   document.getElementById('walker').classList.toggle('won', n >= total);
   document.getElementById('count').textContent = `${n}/${total}`;
-  // 宽屏时按任务数排成两行（最多 5 列），一屏放下所有卡片
-  const cols = Math.min(Math.max(Math.ceil(tasks.length / 2), 3), 5);
+  // 一类一行；宽屏时列数取最多那一类（3~5 列），一屏放下所有卡片
+  const groups = CATS.map(c => ({c, list: tasks.filter(t => catOf(t) === c.id)})).filter(g => g.list.length);
+  const cols = Math.min(Math.max(...groups.map(g => g.list.length), 3), 5);
+  const rows = groups.reduce((n, g) => n + Math.ceil(g.list.length / cols), 0) || 1;
   board.style.setProperty('--cols', cols);
-  board.style.setProperty('--rows', Math.max(Math.ceil(tasks.length / cols), 1));
+  board.style.setProperty('--rows', rows);
+  board.style.setProperty('--gaps', (rows - 1) * 18 + 'px');
   board.innerHTML = '';
-  tasks.forEach((t, i) => {
-    const b = document.createElement('button');
-    const isDone = done.includes(t.id);
-    b.className = 'card' + (isDone ? ' done' : '');
-    b.dataset.id = t.id;
-    b.style.setProperty('--tint', TINTS[i % TINTS.length]);
-    b.innerHTML = `<div class="hold"></div><div class="bubble">${t.emoji}</div><div class="label"></div>`;
-    b.querySelector('.label').textContent = t.name;
-    bindPress(b, t);
-    board.appendChild(b);
+  groups.forEach(({c, list}) => {
+    const sec = document.createElement('section');
+    sec.className = 'cat';
+    sec.style.setProperty('--tint', c.tint);
+    sec.innerHTML = `<div class="cat-h"><span class="ic">${c.emoji}</span><span class="tx">${c.name}</span></div><div class="cards"></div>`;
+    const box = sec.querySelector('.cards');
+    list.forEach(t => {
+      const b = document.createElement('button');
+      b.className = 'card' + (done.includes(t.id) ? ' done' : '');
+      b.dataset.id = t.id;
+      b.innerHTML = `<div class="hold"></div><div class="bubble">${t.emoji}</div><div class="label"></div>`;
+      b.querySelector('.label').textContent = t.name;
+      bindPress(b, t);
+      box.appendChild(b);
+    });
+    board.appendChild(sec);
   });
 }
 
@@ -786,6 +807,7 @@ function renderTaskList(){
       <div class="grid">
         <label class="field">图标<input type="text" class="emoji" maxlength="4"></label>
         <label class="field">名称<input type="text" class="name"></label>
+        <label class="field wide">分类<select class="cat">${CATS.map(c => `<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('')}</select></label>
         <label class="field wide">夸奖的话（没录音时用电脑语音念；写 {名字} 会念成孩子的名字）<input type="text" class="praise"></label>
       </div>
       <div class="media"></div>
@@ -798,6 +820,8 @@ function renderTaskList(){
       inp.oninput = () => { t[key] = inp.value; saveConfig(); };
     };
     bind('.emoji','emoji'); bind('.name','name'); bind('.praise','praise');
+    const sel = el.querySelector('.cat'); sel.value = catOf(t);
+    sel.onchange = () => { t.cat = sel.value; saveConfig(); render(); };
     el.querySelector('.up').onclick = () => move(i, -1);
     el.querySelector('.down').onclick = () => move(i, 1);
     el.querySelector('.del').onclick = async () => {
@@ -821,7 +845,7 @@ function move(i, d){
   saveConfig(); renderTaskList();
 }
 document.getElementById('addTask').onclick = async () => {
-  const t = {id:'t' + Date.now().toString(36), emoji:'⭐', name:'新任务', praise:'做得真棒！'};
+  const t = {id:'t' + Date.now().toString(36), cat:'play', emoji:'⭐', name:'新任务', praise:'做得真棒！'};
   config.tasks.push(t); saveConfig();
   // 默认明天生效，免得孩子刚全部完成，又冒出一个没做的
   if(await uiConfirm('新任务什么时候开始？', '今天就开始', '从明天开始')){
@@ -1026,6 +1050,22 @@ document.getElementById('restore').onclick = async () => {
 /* 离线可用 + 请浏览器不要自动清理这里的数据 */
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){}
+
+/* 第 2 版任务表：分成日常 / 学习 / 益智三类，早饭晚饭合成「自己吃饭」，收玩具换成「休闲娱乐」。
+   家长自己加的任务留着，放进益智类；以前的记录不动，今天的任务换成新表 */
+(function upgradeLayout(){
+  if((config.layout || 1) >= 2) return;
+  const old = ['dress','bfast','math','english','book','sport','dinner','toys','teeth'];
+  const custom = config.tasks.filter(t => !old.includes(t.id) && !DEFAULT_CONFIG.tasks.some(d => d.id === t.id))
+    .map(t => ({...t, cat: t.cat || 'play'}));
+  config.tasks = DEFAULT_CONFIG.tasks.map(d => ({...d})).concat(custom);
+  config.seen = Array.from(new Set((config.seen || []).concat(config.tasks.map(t => t.id))));
+  config.layout = 2;
+  const k = dayKey();
+  plans[k] = config.tasks.map(t => t.id);
+  days[k] = todayDone().filter(id => plans[k].includes(id));
+  saveConfig(); saveDays();
+})();
 
 /* 以后新增的默认任务，也自动加到已经在用的设备上（家长删掉过的不会再加回来） */
 (function addNewDefaults(){
