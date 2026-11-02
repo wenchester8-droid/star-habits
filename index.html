@@ -321,6 +321,12 @@ canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:30}
   </div>
   <p class="hint">可以选一张照片（会自动裁成圆形并轻轻摇头），也可以选一段几秒的短视频，比如 AI 生成的摇头、眨眼动画，会循环播放。</p>
 
+  <h3>完成时的开心短片（所有任务共用）</h3>
+  <div class="task-edit">
+    <p class="hint" style="margin:0">家长按住卡片确认后播放，比如小橙子开心地跳起来。每个任务自己的短片是点卡时看的「做法」。</p>
+    <div class="media" id="doneMedia"></div>
+  </div>
+
   <h3>全部完成时的庆祝</h3>
   <div class="task-edit">
     <div class="field">庆祝的话<input type="text" id="allPraise"></div>
@@ -348,8 +354,8 @@ canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:30}
   <p class="hint">
     · 短片：把 AI 生成的 5 秒小视频选进来，孩子点任务时会全屏播放。<br>
     · 录音：录下你自己的夸奖，会和短片一起播放；没录音时用电脑语音念。<br>
-    · 孩子轻点任务卡：播放短片，提醒「去刷牙吧」，不会得星。<br>
-    · 孩子做完后，家长<b>按住卡片 1 秒多</b>（卡片会慢慢变金色）确认，才点亮星星并播放夸奖。<br>
+    · 孩子轻点任务卡：播放这个任务的「做法」短片，提醒「去刷牙吧」，不会得星。<br>
+    · 孩子做完后，家长<b>按住卡片 1 秒多</b>（卡片会慢慢变金色）确认，播放共用的「开心」短片和这个任务的夸奖，点亮星星。<br>
     · 已点亮的任务再点一次会重播夸奖，不会重复得星。<br>
     · 所有设置、短片和录音只存在这台设备的浏览器里，不会上传。
   </p>
@@ -561,8 +567,9 @@ let playing = false, busy = false, endPlay = null, voiceAudio = null, urls = [];
 async function playClip(key, emoji, praise, opts = {}){
   playing = true;
   // iOS 要求在点击的同一时刻开始播放，所以优先用预载好的内存数据，避免先 await
-  let vBlob = media.peek('v_' + key), aBlob = media.peek('a_' + key);
-  if(vBlob === undefined) vBlob = await media.get('v_' + key);
+  const vk = opts.videoKey || key;
+  let vBlob = media.peek('v_' + vk), aBlob = media.peek('a_' + key);
+  if(vBlob === undefined) vBlob = await media.get('v_' + vk);
   if(aBlob === undefined) aBlob = await media.get('a_' + key);
   urls.forEach(u => URL.revokeObjectURL(u)); urls = [];
   stage.classList.add('show');
@@ -607,13 +614,18 @@ async function playClip(key, emoji, praise, opts = {}){
 skipBtn.addEventListener('click', e => { e.stopPropagation(); endPlay && endPlay(); });
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
+// 点卡看"做法"短片（每个任务一段）；完成时播共用的"开心跳起来"短片，没有就还用任务自己的
+const hasVideo = k => !!media.peek('v_' + k);
+const doneVideo = t => hasVideo('done') ? 'done' : t.id;
+const allVideo = () => hasVideo('all') ? 'all' : (hasVideo('done') ? 'done' : 'all');
+
 // 孩子点卡：没完成的播短片当"示范"，提醒去做；已完成的重播夸奖。都不加星。
 async function tapTask(t){
   if(busy) return;
   busy = true;
   try{
     chime(false);
-    if(todayDone().includes(t.id)) await playClip(t.id, t.emoji, withName(t.praise || '真棒！'));
+    if(todayDone().includes(t.id)) await playClip(t.id, t.emoji, withName(t.praise || '真棒！'), {videoKey: doneVideo(t)});
     else await playClip(t.id, t.emoji, `${config.name}，去${t.name}吧！`, {prompt:true});
   } finally {
     busy = false;
@@ -626,7 +638,7 @@ async function confirmTask(t, cardEl){
   busy = true;
   try{
     chime(true);
-    await playClip(t.id, t.emoji, withName(t.praise || '真棒！'));
+    await playClip(t.id, t.emoji, withName(t.praise || '真棒！'), {videoKey: doneVideo(t)});
     setDone(t.id, true);
     const r = cardEl.getBoundingClientRect();
     justDone = true;
@@ -639,7 +651,7 @@ async function confirmTask(t, cardEl){
     if(dayStat(dayKey()).full){
       await wait(700);
       chime(true); confetti(160);
-      await playClip('all', '🎉', withName(config.allPraise));
+      await playClip('all', '🎉', withName(config.allPraise), {videoKey: allVideo()});
       confetti(120);
     }
   } finally {
@@ -652,7 +664,7 @@ document.getElementById('goal').onclick = async () => {
   busy = true;
   try{
     chime(true); confetti(160);
-    await playClip('all', '🎉', withName(config.allPraise));
+    await playClip('all', '🎉', withName(config.allPraise), {videoKey: allVideo()});
     confetti(120);
   } finally { busy = false; }
 };
@@ -741,7 +753,7 @@ function openPanel(){
   stopHold();
   document.getElementById('kidName').value = config.name;
   document.getElementById('allPraise').value = config.allPraise;
-  renderAvatar(document.getElementById('avatarPrev')); renderToday(); renderTaskList(); renderMedia(document.getElementById('allMedia'), 'all'); renderHist(); renderBars();
+  renderAvatar(document.getElementById('avatarPrev')); renderToday(); renderTaskList(); renderMedia(document.getElementById('allMedia'), 'all'); renderMedia(document.getElementById('doneMedia'), 'done'); renderHist(); renderBars();
   panel.classList.add('show');
 }
 
@@ -846,7 +858,7 @@ async function renderMedia(box, key){
     if(busy) return;
     busy = true;
     const t = config.tasks.find(x => x.id === key);
-    const praise = t ? withName(t.praise) : withName(config.allPraise);
+    const praise = t ? withName(t.praise) : (key === 'done' ? '真棒！' : withName(config.allPraise));
     panel.classList.remove('show');
     try{ await playClip(key, t ? t.emoji : '🎉', praise); }
     finally{ busy = false; panel.classList.add('show'); }
