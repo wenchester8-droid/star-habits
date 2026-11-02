@@ -157,6 +157,17 @@ main{
 .fallback .praise{font-size:clamp(26px,6vw,48px);font-weight:800;text-shadow:0 3px 0 rgba(0,0,0,.25)}
 @keyframes dance{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-24px) rotate(6deg)}}
 .skip{position:absolute;right:16px;bottom:calc(env(safe-area-inset-bottom) + 16px);color:#fff;opacity:.5;font-size:15px;padding:10px 14px}
+/* 自带的对话框：有些环境（App 内嵌浏览器等）不支持系统 prompt/confirm/alert */
+.dlg{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(40,25,10,.55);padding:16px}
+.dlg.show{display:flex}
+.dlg .box{background:var(--bg);border-radius:24px;padding:20px;width:100%;max-width:380px;box-shadow:0 20px 50px rgba(0,0,0,.3);text-align:center}
+.dlg p{margin:4px 0 16px;font-size:18px;font-weight:700;line-height:1.5;white-space:pre-line}
+.dlg .btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.dlg .btns .btn{flex:1;min-width:110px;padding:12px;font-size:17px}
+.dlg .ans{font-size:34px;font-weight:800;min-height:46px;margin-bottom:12px;letter-spacing:4px;color:var(--gold-deep)}
+.dlg .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.dlg .pad button{background:#fff;border:2px solid var(--line);border-radius:14px;font-size:24px;font-weight:700;padding:10px 0}
+.dlg .pad button:active{background:#fff6c9}
 canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:30}
 
 /* ---------- 家长面板 ---------- */
@@ -227,6 +238,12 @@ canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:30}
   <div class="cal" id="cal"></div>
   <div class="msum" id="msum"></div>
   <div class="legend">👑 当天全部完成 · ⭐数字 = 当天点亮几颗星</div>
+</div></div>
+
+<div class="dlg" id="dlg"><div class="box">
+  <p id="dlgMsg"></p>
+  <div id="dlgBody"></div>
+  <div class="btns" id="dlgBtns"></div>
 </div></div>
 
 <canvas id="fx"></canvas>
@@ -612,15 +629,51 @@ function checkDay(){
 setInterval(checkDay, 30000);
 document.addEventListener('visibilitychange', () => { if(!document.hidden) checkDay(); });
 
+/* ================= 对话框（代替系统 prompt / confirm / alert） ================= */
+const dlg = document.getElementById('dlg');
+function dialog(msg, buttons, body = ''){
+  return new Promise(resolve => {
+    document.getElementById('dlgMsg').textContent = msg;
+    document.getElementById('dlgBody').innerHTML = body;
+    const btns = document.getElementById('dlgBtns');
+    btns.innerHTML = '';
+    buttons.forEach(([label, value, primary]) => {
+      const b = document.createElement('button');
+      b.className = 'btn' + (primary ? ' primary' : '');
+      b.textContent = label;
+      b.onclick = () => { dlg.classList.remove('show'); resolve(value); };
+      btns.appendChild(b);
+    });
+    dlg.classList.add('show');
+  });
+}
+const uiConfirm = (msg, ok = '确定', cancel = '取消') => dialog(msg, [[cancel, false], [ok, true, true]]);
+const uiAlert = msg => dialog(msg, [['知道了', true, true]]);
+// 家长验证：数字键盘答一道加法，不用弹系统键盘
+function askNumber(msg){
+  const keys = [1,2,3,4,5,6,7,8,9,'⌫',0,'C'].map(k => `<button data-k="${k}">${k}</button>`).join('');
+  const p = dialog(msg, [['取消', null], ['确定', 'ok', true]], `<div class="ans" id="dlgAns"></div><div class="pad">${keys}</div>`);
+  let v = '';
+  const show = document.getElementById('dlgAns');
+  document.querySelectorAll('#dlgBody .pad button').forEach(b => b.onclick = () => {
+    const k = b.dataset.k;
+    if(k === '⌫') v = v.slice(0, -1); else if(k === 'C') v = ''; else if(v.length < 3) v += k;
+    show.textContent = v;
+  });
+  return p.then(r => r === 'ok' ? v : null);
+}
+
 /* ================= 家长模式（长按齿轮 2 秒） ================= */
 const gear = document.getElementById('gear'), panel = document.getElementById('panel');
 let holdTimer = null;
 const startHold = e => { e.preventDefault(); gear.classList.add('holding'); holdTimer = setTimeout(askParent, 2000); };
-function askParent(){
+async function askParent(){
   stopHold();
   const a = 11 + Math.floor(Math.random() * 18), b = 3 + Math.floor(Math.random() * 7);
-  const ans = prompt(`家长验证：${a} + ${b} = ?`);
-  if(ans !== null && parseInt(ans, 10) === a + b) openPanel();
+  const ans = await askNumber(`家长验证：${a} + ${b} = ?`);
+  if(ans === null) return;
+  if(parseInt(ans, 10) === a + b) openPanel();
+  else uiAlert('答错啦，再按住齿轮试一次。');
 }
 const stopHold = () => { gear.classList.remove('holding'); clearTimeout(holdTimer); };
 gear.addEventListener('pointerdown', startHold);
@@ -677,7 +730,7 @@ function renderTaskList(){
     el.querySelector('.up').onclick = () => move(i, -1);
     el.querySelector('.down').onclick = () => move(i, 1);
     el.querySelector('.del').onclick = async () => {
-      if(!confirm(`删除「${t.name}」？它的短片和录音也会删掉。以前的记录会保留。`)) return;
+      if(!await uiConfirm(`删除「${t.name}」？\n它的短片和录音也会删掉，以前的记录会保留。`, '删除')) return;
       config.tasks.splice(i, 1); saveConfig();
       // 从今天的快照里拿掉，今天的进度马上按剩下的任务算
       const k = dayKey();
@@ -696,11 +749,11 @@ function move(i, d){
   [config.tasks[i], config.tasks[j]] = [config.tasks[j], config.tasks[i]];
   saveConfig(); renderTaskList();
 }
-document.getElementById('addTask').onclick = () => {
+document.getElementById('addTask').onclick = async () => {
   const t = {id:'t' + Date.now().toString(36), emoji:'⭐', name:'新任务', praise:'做得真棒！'};
   config.tasks.push(t); saveConfig();
   // 默认明天生效，免得孩子刚全部完成，又冒出一个没做的
-  if(confirm('新任务今天就开始吗？\n\n确定 = 今天就开始\n取消 = 从明天开始')){
+  if(await uiConfirm('新任务什么时候开始？', '今天就开始', '从明天开始')){
     ensurePlan().push(t.id); saveDays();
   }
   renderTaskList(); renderToday(); render();
@@ -759,7 +812,7 @@ async function renderMedia(box, key){
       rc.textContent = '■ 停止录音'; rc.classList.add('rec');
     }catch(e){
       recorder = null;
-      alert('这里用不了麦克风（需要 https 或 localhost 打开）。可以先用手机录好，再点「选音频」。');
+      uiAlert('这里用不了麦克风。\n可以先用手机录好，再点「选音频」。');
     }
   };
 }
@@ -789,8 +842,8 @@ function renderBars(){
     return `<div class="bar"><span>${t.emoji}</span><span>${t.name}</span><div class="bg"><i style="width:${p}%"></i></div><span>${c}/${total} 天</span></div>`;
   }).join('');
 }
-document.getElementById('resetToday').onclick = () => {
-  if(!confirm('清空今天点亮的星星？')) return;
+document.getElementById('resetToday').onclick = async () => {
+  if(!await uiConfirm('清空今天点亮的星星？', '清空')) return;
   delete days[dayKey()]; saveDays(); renderToday(); renderHist(); renderBars(); render();
 };
 
@@ -884,13 +937,13 @@ document.getElementById('restore').onclick = async () => {
   const f = await pickFile('application/json,.json');
   if(!f) return;
   let data;
-  try{ data = JSON.parse(await f.text()); }catch(e){ alert('这个文件打不开，不是星星打卡的备份。'); return; }
-  if(data.app !== 'star-habits'){ alert('这个文件不是星星打卡的备份。'); return; }
-  if(!confirm(`用 ${data.at.slice(0, 10)} 的备份覆盖现在的设置和记录？`)) return;
+  try{ data = JSON.parse(await f.text()); }catch(e){ uiAlert('这个文件打不开，不是星星打卡的备份。'); return; }
+  if(data.app !== 'star-habits'){ uiAlert('这个文件不是星星打卡的备份。'); return; }
+  if(!await uiConfirm(`用 ${data.at.slice(0, 10)} 的备份覆盖现在的设置和记录？`, '恢复')) return;
   config = data.config; days = data.days || {}; totals = data.totals || {}; plans = data.plans || {};
   saveConfig(); saveDays();
   for(const [k, url] of Object.entries(data.media || {})) await media.put(k, await (await fetch(url)).blob());
-  alert('恢复完成！');
+  await uiAlert('恢复完成！');
   location.reload();
 };
 
