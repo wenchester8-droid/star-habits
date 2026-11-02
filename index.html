@@ -371,15 +371,15 @@ const DEFAULT_CONFIG = {
   name: '小橙子',
   allPraise: '今天的星星全部点亮啦！你太棒了！',
   tasks: [
-    {id:'dress',  emoji:'👕', name:'自己穿衣', praise:'你自己把袖子穿进去啦，扣子也扣好了！'},
-    {id:'bfast',  emoji:'🥣', name:'吃早饭',   praise:'早饭一口一口吃完了，身体有力气啦！'},
-    {id:'math',   emoji:'🔢', name:'学数学',   praise:'你自己数出来了，一二三四五！'},
-    {id:'english',emoji:'🔤', name:'学英语',   praise:'Good job！你跟着大声说英语啦！'},
-    {id:'book',   emoji:'📖', name:'读绘本',   praise:'你认真听完了一个故事，又知道新故事啦！'},
-    {id:'sport',  emoji:'🏃', name:'去运动',   praise:'你跑跑跳跳出了一身汗，身体棒棒的！'},
-    {id:'dinner', emoji:'🍚', name:'吃晚饭',   praise:'你坐在桌子旁好好吃饭，肚子圆滚滚！'},
-    {id:'toys',   emoji:'🧸', name:'收玩具',   praise:'你把玩具一个一个送回家啦！'},
-    {id:'teeth',  emoji:'🪥', name:'刷牙',     praise:'上面下面都刷到了，牙齿亮晶晶！'},
+    {id:'dress',  emoji:'👕', name:'自己穿衣', ask:'我们自己穿衣服吧！', praise:'你自己把袖子穿进去啦，扣子也扣好了！'},
+    {id:'bfast',  emoji:'🥣', name:'吃早饭',   ask:'我们去吃早饭吧！', praise:'早饭一口一口吃完了，身体有力气啦！'},
+    {id:'math',   emoji:'🔢', name:'学数学',   ask:'我们来学数学吧！', praise:'你自己数出来了，一二三四五！'},
+    {id:'english',emoji:'🔤', name:'学英语',   ask:'我们来学英语吧！', praise:'Good job！你跟着大声说英语啦！'},
+    {id:'book',   emoji:'📖', name:'读绘本',   ask:'我们来读绘本吧！', praise:'你认真听完了一个故事，又知道新故事啦！'},
+    {id:'sport',  emoji:'🏃', name:'去运动',   ask:'我们去运动吧！', praise:'你跑跑跳跳出了一身汗，身体棒棒的！'},
+    {id:'dinner', emoji:'🍚', name:'吃晚饭',   ask:'我们去吃晚饭吧！', praise:'你坐在桌子旁好好吃饭，肚子圆滚滚！'},
+    {id:'toys',   emoji:'🧸', name:'收玩具',   ask:'我们把玩具送回家吧！', praise:'你把玩具一个一个送回家啦！'},
+    {id:'teeth',  emoji:'🪥', name:'刷牙',     ask:'我们去刷牙吧！', praise:'上面下面都刷到了，牙齿亮晶晶！'},
   ]
 };
 
@@ -568,9 +568,11 @@ async function playClip(key, emoji, praise, opts = {}){
   playing = true;
   // iOS 要求在点击的同一时刻开始播放，所以优先用预载好的内存数据，避免先 await
   const vk = opts.videoKey || key;
-  let vBlob = media.peek('v_' + vk), aBlob = media.peek('a_' + key);
+  // 声音：点卡提醒用 p_（如"我们去刷牙吧"），夸奖用 a_；没有文件就用电脑语音念
+  const ak = (opts.prompt ? 'p_' : 'a_') + key;
+  let vBlob = media.peek('v_' + vk), aBlob = media.peek(ak);
   if(vBlob === undefined) vBlob = await media.get('v_' + vk);
-  if(aBlob === undefined) aBlob = await media.get('a_' + key);
+  if(aBlob === undefined) aBlob = await media.get(ak);
   urls.forEach(u => URL.revokeObjectURL(u)); urls = [];
   stage.classList.add('show');
   // 前 2 秒不能跳过，免得孩子兴奋拍屏幕把奖励秒关
@@ -588,7 +590,7 @@ async function playClip(key, emoji, praise, opts = {}){
       stage.classList.remove('show'); playing = false; endPlay = null; resolve();
     };
 
-    if(aBlob && !opts.prompt){
+    if(aBlob){
       const u = URL.createObjectURL(aBlob); urls.push(u);
       voiceAudio = new Audio(u); voiceAudio.play().catch(() => speak(praise));
     } else {
@@ -598,7 +600,7 @@ async function playClip(key, emoji, praise, opts = {}){
     if(vBlob){
       const u = URL.createObjectURL(vBlob); urls.push(u);
       fallback.style.display = 'none'; video.style.display = 'block';
-      video.src = u; video.volume = aBlob && !opts.prompt ? 0.5 : 1;
+      video.src = u; video.volume = aBlob ? 0.5 : 1;
       video.onended = endPlay;
       video.play().catch(() => { video.muted = true; video.play().catch(endPlay); });
       timer = setTimeout(endPlay, 30000);
@@ -626,7 +628,7 @@ async function tapTask(t){
   try{
     chime(false);
     if(todayDone().includes(t.id)) await playClip(t.id, t.emoji, withName(t.praise || '真棒！'), {videoKey: doneVideo(t)});
-    else await playClip(t.id, t.emoji, `${config.name}，去${t.name}吧！`, {prompt:true});
+    else await playClip(t.id, t.emoji, `${config.name}，${t.ask || '去' + t.name + '吧！'}`, {prompt:true});
   } finally {
     busy = false;
   }
@@ -1028,6 +1030,7 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
 /* 以后新增的默认任务，也自动加到已经在用的设备上（家长删掉过的不会再加回来） */
 (function addNewDefaults(){
   if(!config.seen) config.seen = config.tasks.map(t => t.id);
+  config.tasks.forEach(t => { const d = DEFAULT_CONFIG.tasks.find(x => x.id === t.id); if(d && !t.ask) t.ask = d.ask; });
   const plan = ensurePlan();
   DEFAULT_CONFIG.tasks.forEach((d, i) => {
     if(config.seen.includes(d.id)) return;
